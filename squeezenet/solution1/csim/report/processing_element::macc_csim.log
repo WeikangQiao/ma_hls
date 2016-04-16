@@ -1,0 +1,27 @@
+   Compiling ../../../../processing_element.cpp in debug mode
+   Generating csim.exe
+CHECKING PRODUCT:
+checking element 0: ok.
+checking element 1: ok.
+checking element 2: ok.
+checking element 3: ok.
+checking element 4: ok.
+checking element 5: ok.
+checking element 6: ok.
+checking element 7: ok.
+checking element 8: ok.
+CHECKING SUM:
+4.000000, ok.
+elem 0: 0.840188 * 0.394383elem 1: 0.783099 * 0.798440elem 2: 0.911647 * 0.197551elem 3: 0.335223 * 0.768230elem 4: 0.277775 * 0.553970elem 5: 0.477397 * 0.628871elem 6: 0.364784 * 0.513401elem 7: 0.952230 * 0.916195elem 8: 0.635712 * 0.717297CHECKING PRODUCT:
+checking element 0: ok.
+checking element 1: ok.
+checking element 2: ok.
+checking element 3: ok.
+checking element 4: ok.
+checking element 5: ok.
+checking element 6: ok.
+checking element 7: ok.
+checking element 8: ok.
+CHECKING SUM:
+3.364042, ok.
+@I [SIM-1] CSim done with 0 errors.

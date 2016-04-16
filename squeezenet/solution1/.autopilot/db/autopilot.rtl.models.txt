@@ -1,0 +1,4 @@
+do_macc_fadd_32ns_32ns_32_5_full_dsp
+do_macc_fmul_32ns_32ns_32_4_max_dsp
+do_macc_macc
+do_macc
