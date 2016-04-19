@@ -1,15 +1,19 @@
 CC=g++
-CFLAGS=-I. -Wall -g
+CFLAGS=-I. -Ivivado_include -Wall -g -Wno-unknown-pragmas -Wno-unused-label
 DEPS = *.h
-TESTS = test_processing_element.o processing_element.o
+CPP_FILES = $(wildcard *.cpp)
+OBJS = $(CPP_FILES: .cpp=.o)
 
 run: test
 	./test
+	
+clean:
+	rm *.o
 
 %.o: %.cpp $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-test: $(TESTS)
+test: $(OBJS)
 	$(CC) -o $@ $^ $(CFLAGS)
 
 
