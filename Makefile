@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS=-I. -I../vivado_include -Wall -g -Wno-unknown-pragmas -Wno-unused-label -Wno-c++11-compat-deprecated-writable-strings
+CFLAGS=-I. -I./vivado_include -Wall -g -Wno-unknown-pragmas -Wno-unused-label -Wno-c++11-compat-deprecated-writable-strings
 DEPS = *.h
 CPP_FILES = $(wildcard *.cpp) $(wildcard *.c)
 OBJS = $(CPP_FILES: .cpp=.o)
