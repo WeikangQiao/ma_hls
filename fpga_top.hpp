@@ -22,7 +22,7 @@ typedef int bus_t;
 #define TILING_CI (4)
 
 typedef ap_uint<2> cacheline_t;
-typedef ap_uint<22> imgcacheaddr_t;
+typedef ap_uint<24> imgcacheaddr_t;
 typedef ap_uint<16> pixelperrow_t;
 typedef ap_int<10> coordinate_t;
 

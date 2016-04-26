@@ -53,15 +53,19 @@ void copy_input_image_to_FPGA(network_t *net_CPU, float *image) {
 
 void do_preparation_on_CPU(network_t *net_CPU) {
 
+  int win = net_CPU->layers[1].width;
+  int hin = net_CPU->layers[1].height;
+  int chin = net_CPU->layers[1].channels_in;
+
   // CPU Memory
-  float input_image[256 * 256 * 3];
+  float *input_image = (float*)malloc(win*hin*chin*sizeof(float));
 
   // Generate Input Image (pixels of format YYYXXX.0CH)
-  for (int x = 0; x < 256; x++) {
-    for (int y = 0; y < 256; y++) {
-      for (int ch = 0; ch < 3; ch++) {
+  for (int x = 0; x < win; x++) {
+    for (int y = 0; y < hin; y++) {
+      for (int ch = 0; ch < chin; ch++) {
         float value = y * 1000.0 + x + ch / 1000.0;
-        input_image[y * 256 * 3 + x * 3 + ch] = value;
+        input_image[y * win * chin + x * chin + ch] = value;
       }
     }
   }

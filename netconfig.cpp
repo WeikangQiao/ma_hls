@@ -91,16 +91,17 @@ void print_layers(network_t *net) {
     int weights_size = layer->kernel * layer->kernel * layer->channels_in *
                            layer->channels_out +
                        layer->channels_out;
+    
+    printf("%6s: IN %3d x %3d x %3d @mem(%6lu-%6lukB), OUT @mem(%6lukB)",
+           layer->name, (int)layer->height, (int)layer->width,
+           (int)layer->channels_in,
+           layer->mem_addr_input * sizeof(float) / 1024,
+           (layer->mem_addr_input + memory_needed) * sizeof(float) / 1024,
+           layer->mem_addr_output * sizeof(float) / 1024);
 
     switch (layer->type) {
     case LAYER_CONV:
-      printf("%9s: IN %3d x %3d x %3d @mem(%6lu-%6lukB), OUT @mem(%6lukB), ",
-             layer->name, (int)layer->height, (int)layer->width,
-             (int)layer->channels_in,
-             layer->mem_addr_input * sizeof(float) / 1024,
-             (layer->mem_addr_input + memory_needed) * sizeof(float) / 1024,
-             layer->mem_addr_output * sizeof(float) / 1024);
-      printf("OP (%dx%d)/%d%s", (int)layer->kernel, (int)layer->kernel,
+      printf(", OP (%dx%d)/%d%s", (int)layer->kernel, (int)layer->kernel,
              (int)layer->stride, layer->pad ? "p" : " ");
       printf(", PARAM @mem(%4lu-%4lukB)",
              layer->mem_addr_weights * sizeof(float) / 1024,
@@ -111,24 +112,13 @@ void print_layers(network_t *net) {
       break;
 
     case LAYER_POOL:
-      printf("%9s: IN %3d x %3d x %3d @mem(%6lu-%6lukB), OUT @mem(%6lukB), ",
-             layer->name, (int)layer->height, (int)layer->width,
-             (int)layer->channels_in,
-             layer->mem_addr_input * sizeof(float) / 1024,
-             (layer->mem_addr_input + memory_needed) * sizeof(float) / 1024,
-             layer->mem_addr_output * sizeof(float) / 1024);
-      printf("OP (%dx%d)/%d%s", (int)layer->kernel, (int)layer->kernel,
+      printf(", OP (%dx%d)/%d%s", (int)layer->kernel, (int)layer->kernel,
              (int)layer->stride, (int)layer->pad ? "p" : " ");
       printf("\n");
       break;
 
     default:
-      printf("%9s: IN %3d x %3d x %3d @mem(%6lu-%6lukB), OUT @mem(%6lukB)\n",
-             layer->name, (int)layer->height, (int)layer->width,
-             (int)layer->channels_in,
-             layer->mem_addr_input * sizeof(float) / 1024,
-             (layer->mem_addr_input + memory_needed) * sizeof(float) / 1024,
-             layer->mem_addr_output * sizeof(float) / 1024);
+      printf("\n");
       break;
     }
 
