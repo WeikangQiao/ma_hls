@@ -14,7 +14,7 @@
 #include "math.h"
 #include "ap_int.h"
 
-#include "miniFire.hpp"
+#include "network.hpp"
 
 ///////////////
 ///////////////
@@ -93,6 +93,7 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
   imgcacheaddr_t img_cache_addr;
   imgcacheaddr_t img_dram_offset;
   pixelperrow_t pixels_per_row;
+  bool is_last_layer;
 
   ////////////////////////
   /// Loop Level 1: Layers
@@ -158,6 +159,7 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
       height_out = height_out / 2;
     }
     pixels_per_row = layer.width * layer.channels_in;
+    is_last_layer = (current_layer == num_layers-1);
 
     // Setup Image Cache
 
@@ -473,12 +475,10 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
               // For 1x1 Kernel: Write 9 Multiply-Results to Cache
               for (int l = 0; l < 9; l++) {
                 if ((co + l) < layer.channels_out) {
-                  if (ci == 0) {
-                    // printf("initialize output cache %d\n", (int)co + l);
+                  if (ci == 0 & !is_last_layer) {
                     OUTPUT_CACHE[co + l] = products[l] + 0;
                     printf("i");
                   } else {
-                    // printf("update     output cache %d\n", (int)co + l);
                     OUTPUT_CACHE[co + l] = products[l] + OUTPUT_CACHE[co + l];
                     printf("u");
                   }
@@ -522,16 +522,19 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
           y_out -= 1;
           x_out -= 1;
         }
+
         printf("            saving as pixel(%d,%d)\n", (int)y_out, (int)x_out);
 
-        float *DRAM_OUTPUT_PIXEL_PTR =
-            (DRAM_OUTPUT_PTR + (y_out) * (layer.channels_out * width_out) +
-             (x_out) * (layer.channels_out));
+        
+        int ch_out = layer.channels_out;
         if (layer.is_expand_layer) {
           // Expand Layers are interleaved -> leave space for 2x channels_out
-          DRAM_OUTPUT_PIXEL_PTR += x_out * (layer.channels_out);
+          printf("(expand layer, doubling virtual output channels)");
+          ch_out = 2 * layer.channels_out;
         }
-
+        float *DRAM_OUTPUT_PIXEL_PTR =
+            (DRAM_OUTPUT_PTR + y_out * width_out * ch_out + x_out * ch_out);
+        
         for (co = 0; co < layer.channels_out; co++) {
 
           float value = OUTPUT_CACHE[co];

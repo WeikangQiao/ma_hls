@@ -1,7 +1,7 @@
 #include "netconfig.hpp"
 
 void addLayer(network_t *net, layer_t layer, bool is_expand_layer,
-              bool update_memory_address) {
+              bool update_memory_address, bool is_global_pool) {
 
   // Keep Track of Memory Locations for Activations + Weights
   static int next_activation_mem = 0;
@@ -11,7 +11,7 @@ void addLayer(network_t *net, layer_t layer, bool is_expand_layer,
   float mem_border = 1024 * 1024;
 
   // Normal Layers:
-  // - increase "next_activation_memory" to next available 1MB memory border
+  // - increase "next_activation_mem" to next available 1MB memory border
   // Data + First Expand1x1 Layers:
   // - do not increase memory addresses
   if (update_memory_address) { // "normal layer"
@@ -38,15 +38,14 @@ void addLayer(network_t *net, layer_t layer, bool is_expand_layer,
     // next_weights_mem = ceil(next_weights_mem / mem_border) * mem_border;
   }
 
-  // For "expand" layers:
-  // - Read from same input location twice
-  // - Write to slightly offset memory locations (interleave output channels)
+  // For 2nd "expand 3x3" layer:
+  // - will read from same input location
+  // - will write to slightly offset memory location (interleave out channels)
   if (is_expand_layer && !update_memory_address) {
-    next_activation_mem += layer.channels_out;
-    layer.mem_addr_output = next_activation_mem;
-    next_activation_mem = ceil(next_activation_mem / mem_border) * mem_border;
+    layer.mem_addr_output = next_activation_mem + layer.channels_out;
   }
   layer.is_expand_layer = is_expand_layer;
+  layer.global_pool = is_global_pool;
 
   // Add Layer to network
   net->layers[net->num_layers] = layer;
@@ -56,22 +55,25 @@ void addLayer(network_t *net, layer_t layer, bool is_expand_layer,
 
 void loadWeightsFromFile(network_t *net, char *filename) {
 
-  FILE *f = fopen(filename, "r");
+  FILE *filehandle = fopen(filename, "r");
 
   for (int i = 0; i < net->num_layers; i++) {
     layer_t *layer = &net->layers[i];
     if (layer->type == LAYER_CONV) {
-      int num_weights = // conv + bias weights
-          layer->channels_out * layer->channels_in * layer->kernel *
-              layer->kernel +
-          layer->channels_out;
-      float *weights_addr =
-          (float *)(net->weights + sizeof(float) * layer->mem_addr_weights);
-      fread(weights_addr, sizeof(float), num_weights, f);
+      int chout  = layer->channels_out;
+      int chin   = layer->channels_in;
+      int kernel = layer->kernel;
+
+      // calculate address within weight memory section
+      int num_weights = chout * chin * kernel * kernel + chout;
+      float *weights_addr = (net->weights + layer->mem_addr_weights);
+      
+      // read portion of input file 
+      fread(weights_addr, sizeof(float), num_weights, filehandle);
     }
   }
 
-  fclose(f);
+  fclose(filehandle);
 }
 
 // char *stradd(char *name, char *suffix) {
@@ -91,7 +93,7 @@ void print_layers(network_t *net) {
     int weights_size = layer->kernel * layer->kernel * layer->channels_in *
                            layer->channels_out +
                        layer->channels_out;
-    
+
     printf("%6s: IN %3d x %3d x %3d @mem(%6lu-%6lukB), OUT @mem(%6lukB)",
            layer->name, (int)layer->height, (int)layer->width,
            (int)layer->channels_in,
@@ -121,6 +123,5 @@ void print_layers(network_t *net) {
       printf("\n");
       break;
     }
-
   }
 }

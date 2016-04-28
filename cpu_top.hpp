@@ -4,7 +4,7 @@
 #include <cstdio>
 
 #include "netconfig.hpp"
-#include "miniFire.hpp"
+#include "network.hpp"
 
 #include "fpga_top.hpp"
   

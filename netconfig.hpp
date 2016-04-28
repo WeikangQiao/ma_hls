@@ -35,10 +35,10 @@ typedef enum {
   LAYER_NONE
 } layertype_t;
 
-struct layer_t {
+struct __attribute__ ((packed)) layer_t {
   char name[NET_NAME_MAX_LEN];
   layertype_t type;
-  dimension_t width;
+  dimension_t width;  // input dimensions
   dimension_t height;
   channel_t channels_in;
   channel_t channels_out;
@@ -49,19 +49,20 @@ struct layer_t {
   int mem_addr_output;
   int mem_addr_weights;
   bool is_expand_layer;
+  bool global_pool;
   layer_t(char *n, layertype_t t, int w, int h, int ci, int co, int k, int p,
           int s, int mem_i = 0, int mem_o = 0, int mem_w = 0,
-          bool is_expand = false)
+          bool is_expand = false, bool global_pool = true)
       : type(t), width(w), height(h), channels_in(ci), channels_out(co),
         kernel(k), pad(p), stride(s), mem_addr_input(mem_i),
         mem_addr_output(mem_o), mem_addr_weights(mem_w),
-        is_expand_layer(is_expand) {
+        is_expand_layer(is_expand), global_pool(global_pool) {
     strncpy(name, n, NET_NAME_MAX_LEN);
   };
   layer_t()
       : name(""), type(LAYER_NONE), width(0), height(0), channels_in(0), channels_out(0),
         kernel(0), pad(0), stride(0), mem_addr_input(0), mem_addr_output(0),
-        mem_addr_weights(0), is_expand_layer(0) {
+        mem_addr_weights(0), is_expand_layer(0), global_pool(0) {
   };
 };
 
@@ -81,7 +82,7 @@ struct network_t {
 void print_layers(network_t *net);
 
 void addLayer(network_t *net, layer_t layer, bool is_expand_layer = false,
-              bool update_memory_address = true);
+              bool update_memory_address = true, bool is_global_pool = false);
 
 void loadWeightsFromFile(network_t *net, char *filename);
 
