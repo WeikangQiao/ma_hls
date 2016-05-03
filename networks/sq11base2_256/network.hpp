@@ -11,11 +11,11 @@
 
 #include "netconfig.hpp"
 
-const int MAX_NUM_LAYERS = 30;
+const int MAX_NUM_LAYERS = 26;
 const int MAX_WEIGHTS_PER_LAYER = 513000;
-const int MAX_IMAGE_CACHE_SIZE = 1048576;
+const int MAX_IMAGE_CACHE_SIZE = 524288;
 const int MAX_NUM_CHOUT = 1000;
-//const int MAX_ACTIVE_AREA_SIZE = 256000;
+//const int MAX_ACTIVE_AREA_SIZE = 576;
 
 network_t *get_network_config();
 

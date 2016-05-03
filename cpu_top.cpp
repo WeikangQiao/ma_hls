@@ -1,7 +1,7 @@
 #include "cpu_top.hpp"
 
 // Pointers to FPGA DRAM Memory
-char *DRAM; // addressed at byte-level
+char *DRAM;  // addressed at byte-level
 layer_t *DRAM_LAYER_CONFIG;
 float *DRAM_WEIGHTS;
 float *DRAM_DATA;
@@ -37,9 +37,15 @@ void allocate_FPGA_memory(network_t *net_CPU) {
   DRAM_DATA = (float *)(DRAM + configsize + weightsize);
 
   // FPGA DRAM Memory Allocation: Weights
-  printf("CPU: FPGA DRAM Memory Allocation:\nBytes allocated: %d Bytes "
-         "(layer config) + %d Bytes (weights)\n\n",
-         layerconfig_size, weights_size);
+  printf(
+      "CPU: FPGA DRAM Memory Allocation:\nBytes allocated: %d Bytes "
+      "(layer config) + %d Bytes (weights)\n",
+      layerconfig_size, weights_size);
+  printf(
+      "CPU: FPGA DRAM Memory Allocation:\nStart Address: %lu, End Address: "
+      "%lu\n\n",
+      (unsigned long)DRAM,
+      (unsigned long)((char *)DRAM + configsize + weightsize + datasize));
 }
 
 void copy_config_to_FPGA(network_t *net_CPU) {
@@ -48,7 +54,7 @@ void copy_config_to_FPGA(network_t *net_CPU) {
 
   // Layer Config:
   memcpy(DRAM_LAYER_CONFIG, net_CPU->layers, layerconfig_size);
-  
+
   // Weights:
   memcpy(DRAM_WEIGHTS, net_CPU->weights, weights_size);
 
@@ -57,7 +63,6 @@ void copy_config_to_FPGA(network_t *net_CPU) {
 }
 
 void copy_input_image_to_FPGA(network_t *net_CPU, float *image) {
-
   // Assumption: Input Data goes into Layer 0
   int win = net_CPU->layers[0].width;
   int hin = net_CPU->layers[0].height;
@@ -66,36 +71,34 @@ void copy_input_image_to_FPGA(network_t *net_CPU, float *image) {
 
   // Copy Input Data:
   memcpy(DRAM_DATA, image, input_image_size);
-  printf("Input Data copied: %d Bytes (input image, %s)\n\n",
-         net_CPU->layers[0].name, input_image_size);
+  printf("Input Data copied: %d Bytes (input image, %s)\n\n", input_image_size,
+         net_CPU->layers[0].name);
 }
 
-// Copies Results back from FPGA memory;
-// Assumes Last Layer reduces data to dimensions 1x1xCH_OUT
-// Second Parameter: (float*) pointer to allocated memory
-void copy_results_from_FPGA(network_t *net_CPU, float *results) {
-
+// Copy Results back from FPGA memory
+// Assumption: Last Layer reduces data to dimensions 1x1xCH_OUT
+// Assumption: Output Data is written back to where initial image was placed
+// results: (float*) pointer to allocated memory
+void copy_results_from_FPGA(network_t *net_CPU, float *results, int ch_out) {
   // Assumption: Output is of Dimension 1x1x(num_channels of last layer)
   int lastlayer = net_CPU->num_layers - 1;
-  int chout = net_CPU->layers[lastlayer].channels_in;
-  char *name = net_CPU->layers[lastlayer].name;
-  int result_offset = net_CPU->layers[lastlayer].mem_addr_output;
+  int results_size = ch_out * sizeof(float);
+  // Verify that last layer reduces spatial dimensions to 1x1:
+  assert(net_CPU->layers[lastlayer].pool == POOL_GLOBAL);
 
-  int results_size = chout * sizeof(float);
-  results = (float *)malloc(results_size);
-  printf("malloc returned %lu\n", (unsigned long)results);
+  // Assumption: Output Data is exactly where original input data was placed
+  int result_offset = 0;
 
   // Copy Results Data:
   memcpy(results, DRAM_DATA + result_offset, results_size);
-  printf("Output Layer %s copied: %d Bytes (class results)\n\n", name,
-         results_size);
+  printf("CPU: Copy Results from FPGA DRAM: %d Bytes\n", results_size);
 }
 
 void do_preparation_on_CPU(network_t *net_CPU) {
-
-  int win = net_CPU->layers[1].width;
-  int hin = net_CPU->layers[1].height;
-  int chin = net_CPU->layers[1].channels_in;
+  // Assumption: Input Data goes straight to First Layer
+  int win = net_CPU->layers[0].width;
+  int hin = net_CPU->layers[0].height;
+  int chin = net_CPU->layers[0].channels_in;
 
   // CPU Memory
   float *input_image = (float *)malloc(win * hin * chin * sizeof(float));
@@ -110,13 +113,21 @@ void do_preparation_on_CPU(network_t *net_CPU) {
       }
     }
   }
-  
+
+  // Enable for real randomness:
+  //  srand(time(NULL));
+
+  // Expected Results:
+  // For srand(1) [default] and miniFire8UnitFilter, should get result 4315.492
+  // for each class.
+
   // RANDOM INPUT
-  // Generate Input Image (pixels of format YYYXXX.0CH)
+  // Generate Input Image (pixels between +-1, 3 places after zero)
   for (int x = 0; x < win; x++) {
     for (int y = 0; y < hin; y++) {
       for (int ch = 0; ch < chin; ch++) {
-        float value = (rand()*1.0/RAND_MAX - 0.5)*10;
+        //
+        float value = (rand() % 2000 - 1000) / 2000.0 * 100;
         input_image[y * win * chin + x * chin + ch] = value;
       }
     }
@@ -139,7 +150,6 @@ void do_preparation_on_CPU(network_t *net_CPU) {
 }
 
 int main() {
-
   // CPU Memory: Create Network Config
   network_t *net_CPU;
   net_CPU = get_network_config();
@@ -160,17 +170,42 @@ int main() {
            (long)DRAM_WEIGHTS - (long)DRAM, (long)DRAM_DATA - (long)DRAM);
 
   ///////
-  // Finish on CPU (Softmax)
+  // Copy Results back from FPGA
   ///////
 
   // Fetch Results back from shared DRAM
-  int ch_out = net_CPU->layers[net_CPU->num_layers - 1].channels_in;
+  int ch_out = net_CPU->layers[net_CPU->num_layers - 1].channels_out;
   float *results = (float *)malloc(ch_out * sizeof(float));
-  copy_results_from_FPGA(net_CPU, results);
+  copy_results_from_FPGA(net_CPU, results, ch_out);
 
-  printf("got %d results\n", ch_out);
-  printf("placed at %lu\n", (unsigned long)results);
+  ///////
+  // Calculate Softmax on CPU
+  // p_i = e^{r_i} / (\sum(e^{r_i}))
+  ///////
+
+  // Calculate Exponentials and Sum
+  float expsum = 0;
   for (int i = 0; i < ch_out; i++) {
-    printf("Result %d: %010.4f\n", i, results[i]);
+    // FPGA just does "accumulate-pooling", not average -> Divide on CPU!
+    results[i] = exp(results[i] / ch_out);
+    expsum += results[i];
+  }
+
+  // Calculate Probabilities
+  std::vector<std::pair<float, int> > probabilities(ch_out);
+  for (int i = 0; i < ch_out; i++) {
+    probabilities[i] = std::pair<float, int>(results[i] / expsum, i);
+    // printf("P(class %3d) = %4.2f%%\n", i, 100 * probabilities[i].first);
+  }
+
+  // Sort and Get Top5 / Top1
+  std::sort(probabilities.begin(), probabilities.end());
+  std::reverse(probabilities.begin(), probabilities.end());
+  printf("\nTop-1: class %d (%4.2f%%)\n", probabilities[0].second,
+         100 * probabilities[0].first);
+  printf("Top-5:\n");
+  for (int i = 0; i < std::min(5, ch_out); i++) {
+    printf("    %4.2f%%: class %d\n", 100 * probabilities[i].first,
+           probabilities[i].second);
   }
 }

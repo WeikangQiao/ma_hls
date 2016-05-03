@@ -34,13 +34,13 @@ float FILTER_CACHE[MAX_WEIGHTS_PER_LAYER];
 float IMAGE_CACHE[MAX_IMAGE_CACHE_SIZE];
 float ACTIVE_AREA[TILING_CI][9];
 float OUTPUT_CACHE[MAX_NUM_CHOUT];
+float GLOBAL_POOL_CACHE[MAX_NUM_CHOUT];
 layer_t BRAM_LAYER_CONFIG[MAX_NUM_LAYERS];
 
 void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
               unsigned int byte_layerconfig_offset,
               unsigned int byte_weights_offset,
               unsigned int byte_input_offset) {
-
 // Interface Specification:
 
 // AXI4 Master
@@ -49,27 +49,28 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
 #pragma HLS RESOURCE core = AXI4M variable = DRAM
 
 // AXI4 Lite + Registers for Configuration Data
-#pragma HLS RESOURCE core = AXI4LiteS variable = return metadata =             \
+#pragma HLS RESOURCE core = AXI4LiteS variable = return metadata = \
     "-bus_bundle LITE"
 #pragma HLS INTERFACE ap_none register port = num_layers
-#pragma HLS RESOURCE core = AXI4LiteS variable = weights_offset metadata =     \
+#pragma HLS RESOURCE core = AXI4LiteS variable = weights_offset metadata = \
     "-bus_bundle LITE"
 #pragma HLS INTERFACE ap_none register port = weights_offset
-#pragma HLS RESOURCE core = AXI4LiteS variable = weights_offset metadata =     \
+#pragma HLS RESOURCE core = AXI4LiteS variable = weights_offset metadata = \
     "-bus_bundle LITE"
 #pragma HLS INTERFACE ap_none register port = layerconfig_offset
 #pragma HLS RESOURCE core = AXI4LiteS variable = layerconfig_offset metadata = \
     "-bus_bundle LITE"
 #pragma HLS INTERFACE ap_none register port = input_offset
-#pragma HLS RESOURCE core = AXI4LiteS variable = input_offset metadata =       \
+#pragma HLS RESOURCE core = AXI4LiteS variable = input_offset metadata = \
     "-bus_bundle LITE"
 
   printf("Start FPGA Module:\n====================\n\n");
 
   // DRAM Memory Pointers
-  void *DRAM_LAYERCONFIG = ((char *)DRAM + byte_layerconfig_offset);
-  void *DRAM_WEIGHTS = ((char *)DRAM + byte_weights_offset);
-  void *DRAM_DATA = ((char *)DRAM + byte_input_offset);
+  layer_t *DRAM_LAYERCONFIG =
+      (layer_t *)((char *)DRAM + byte_layerconfig_offset);
+  float *DRAM_WEIGHTS = (float *)((char *)DRAM + byte_weights_offset);
+  float *DRAM_DATA = (float *)((char *)DRAM + byte_input_offset);
 
   printf("FPGA: Fetch Layer Configuration from DRAM to BRAM\n");
 
@@ -92,14 +93,13 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
   cacheline_t current_img_cache_line;
   imgcacheaddr_t img_cache_addr;
   imgcacheaddr_t img_dram_offset;
+  weightaddr_t weight_addr;
   pixelperrow_t pixels_per_row;
-  bool is_last_layer;
 
   ////////////////////////
   /// Loop Level 1: Layers
   //
   for (current_layer = 0; current_layer < num_layers; current_layer++) {
-
     // Load Layer Configuration from BRAM
 
     layer = BRAM_LAYER_CONFIG[current_layer];
@@ -145,7 +145,7 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
            layer.channels_out == 32 | layer.channels_out == 64 |
            layer.channels_out == 128 | layer.channels_out == 256 |
            layer.channels_out == 512 | layer.channels_out == 1024 |
-           layer.channels_in == 1000);
+           layer.channels_out == 1000);
     assert(layer.pad == 0 | layer.pad == 1);
     assert(layer.stride == 1 | layer.stride == 2);
     assert(layer.kernel == 1 | layer.kernel == 3);
@@ -159,30 +159,31 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
       height_out = height_out / 2;
     }
     pixels_per_row = layer.width * layer.channels_in;
-    is_last_layer = (current_layer == num_layers-1);
 
     // Setup Image Cache
 
     float *DRAM_INPUT_PTR = ((float *)DRAM_DATA + layer.mem_addr_input);
     int BYTES_PER_ROW = pixels_per_row * sizeof(float);
     int BYTES_PER_IMG = layer.height * BYTES_PER_ROW;
-    printf("    setup image cache:   will fetch from %lu (preload %dkB, total "
-           "%dkB)\n",
-           (unsigned long)DRAM_INPUT_PTR, BYTES_PER_ROW / 1024,
-           BYTES_PER_IMG / 1024);
+    printf(
+        "    setup image cache:   will fetch from %lu (preload %dkB, total "
+        "%dkB)\n",
+        (unsigned long)DRAM_INPUT_PTR, BYTES_PER_ROW / 1024,
+        BYTES_PER_IMG / 1024);
 
     // Setup Weights Cache
 
+    int num_weights_in_layer =
+        layer.kernel * layer.kernel * layer.channels_in * layer.channels_out +
+        layer.channels_out;
     if (layer.type == LAYER_CONV) {
       float *DRAM_WEIGHTS_PTR =
           ((float *)DRAM_WEIGHTS + layer.mem_addr_weights);
-      int FILTER_BYTES = (layer.channels_out +
-                          layer.kernel * layer.kernel * layer.channels_in *
-                              layer.channels_out) *
-                         sizeof(float);
+      int FILTER_BYTES = num_weights_in_layer * sizeof(float);
       printf("    setup weights cache: will fetch from %lu (%dkB)\n",
              (unsigned long)DRAM_WEIGHTS_PTR, FILTER_BYTES / 1024);
       memcpy(FILTER_CACHE, DRAM_WEIGHTS_PTR, FILTER_BYTES);
+      weight_addr = 0;
     }
 
     // Setup Output Cache
@@ -190,11 +191,16 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
 
     // Setup Convolution Kernels
     int num_ch_out_per_convolution;
-    if (layer.kernel == 3)
+    int weights_per_filter;
+    if (layer.kernel == 3) {
       num_ch_out_per_convolution = 1;
-    else
+      weights_per_filter = 9;
+    } else {
       num_ch_out_per_convolution = 9;
+      weights_per_filter = 1;
+    }
     assert(num_ch_out_per_convolution == 1 | num_ch_out_per_convolution == 9);
+    assert(weights_per_filter == 1 | weights_per_filter == 9);
 
     ////////////////////////
     /// Loop Level 2: Rows Y
@@ -233,8 +239,7 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
     printf("    start processing rows...\n");
 
     for (y = -layer.pad; y < layer.height + layer.pad; y++) {
-
-      if (y == -1) { // top padding row, nothing to do.
+      if (y == -1) {  // top padding row, nothing to do.
         printf("    skip top padding row\n");
         continue;
       }
@@ -257,9 +262,10 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
       img_cache_addr = pixels_per_row * current_img_cache_line;
       img_dram_offset = pixels_per_row * y;
 
-      printf("setup image cache: to cache line %d, addr %d; DRAM offset %d\n",
-             (int)current_img_cache_line, (int)img_cache_addr,
-             (int)img_dram_offset);
+      printf(
+          "    setup image cache: to cache line %d, addr %d; DRAM offset %d\n",
+          (int)current_img_cache_line, (int)img_cache_addr,
+          (int)img_dram_offset);
 
       ////////////////////////
       /// Loop Level 3: Columns X
@@ -268,7 +274,6 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
       printf("        start processing columns...\n");
 
       for (x = -layer.pad; x < layer.width + layer.pad; x++) {
-
         printf("L%-2dR%-3dC%-3d ", (int)current_layer, (int)y, (int)x);
 
         // Check type of current Pixel:
@@ -278,11 +283,12 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
         // For kernel 1x1, packed3x3 (no padding):
         // (no preload, width pixels convolutions) x (height rows)
 
-        bool is_preload_row = (layer.pad & (y == 0)); // don't push to AA SREG
-        bool do_pad_top_row = (layer.pad & (y == 1)); // pad row0 of AA SREG
-        bool do_pad_bot_row = (layer.pad & (y == layer.height)); // pad row2 ...
+        bool is_preload_row = (layer.pad & (y == 0));  // don't push to AA SREG
+        bool do_pad_top_row = (layer.pad & (y == 1));  // pad row0 of AA SREG
+        bool do_pad_bot_row =
+            (layer.pad & (y == layer.height));  // pad row2 ...
 
-        bool is_preload_col = (layer.pad & ((x == -1) | (x == 0))); // no conv
+        bool is_preload_col = (layer.pad & ((x == -1) | (x == 0)));  // no conv
         bool do_pad_curr_col = (layer.pad & ((x == -1) | (x == layer.width)));
 
         bool is_valid_pixel =
@@ -295,18 +301,12 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
                (int)y, (int)x, is_preload_row, do_pad_top_row, do_pad_bot_row,
                is_preload_col, do_pad_curr_col, is_valid_pixel);*/
         printf("pixel (%d,%d) (  ", (int)y, (int)x);
-        if (is_preload_row)
-          printf("is_preload_row  ");
-        if (do_pad_top_row)
-          printf("do_pad_top_row  ");
-        if (do_pad_bot_row)
-          printf("do_pad_bot_row  ");
-        if (is_preload_col)
-          printf("is_preload_col  ");
-        if (do_pad_curr_col)
-          printf("do_pad_curr_col  ");
-        if (is_valid_pixel)
-          printf("is_valid_pixel  ");
+        if (is_preload_row) printf("is_preload_row  ");
+        if (do_pad_top_row) printf("do_pad_top_row  ");
+        if (do_pad_bot_row) printf("do_pad_bot_row  ");
+        if (is_preload_col) printf("is_preload_col  ");
+        if (do_pad_curr_col) printf("do_pad_curr_col  ");
+        if (is_valid_pixel) printf("is_valid_pixel  ");
         printf(")\n");
 
         ////////////////////////
@@ -315,7 +315,6 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
         printf("            start processing input channels...\n");
 
         for (ci = 0; ci < layer.channels_in; ci++) {
-
           printf("L%-2dR%-3dC%-3dI%-2d ", (int)current_layer, (int)y, (int)x,
                  (int)ci);
 
@@ -339,7 +338,7 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
                    (int)x);
           }
 
-          if (is_preload_row) { // preload row; load next input channel
+          if (is_preload_row) {  // preload row; load next input channel
             printf("               skip to next channel (preload row)\n");
             continue;
           }
@@ -348,9 +347,10 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
 
           channel_t current_aa = ci % TILING_CI;
           if (layer.kernel == 1) {
-            printf("               shift one pixel into ActiveArea SREG %d "
-                   "(%010.4f)",
-                   (int)current_aa, fetched_pixel);
+            printf(
+                "               shift one pixel into ActiveArea SREG %d "
+                "(%010.4f)",
+                (int)current_aa, fetched_pixel);
             for (int j = 0; j < 3; j++) {
 #pragma HLS unroll
               for (int i = 0; i < 3; i++) {
@@ -369,14 +369,15 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
                 ACTIVE_AREA[current_aa][j * 3 + i] =
                     ACTIVE_AREA[current_aa][j * 3 + i + 1];
               }
-              { // shift in new pixels right
+              {  // shift in new pixels right
                 bool do_pad_pixel =
                     (((j == 0) & do_pad_top_row) | ((j == 2) & do_pad_bot_row) |
                      do_pad_curr_col);
-                if (do_pad_pixel) { // top/bottom row or left/right col padding:
+                if (do_pad_pixel) {  // top/bottom row or left/right col
+                                     // padding:
                   printf("0 ");
                   ACTIVE_AREA[current_aa][j * 3 + 2] = 0;
-                } else { // normal pixel - load from BRAM
+                } else {  // normal pixel - load from BRAM
                   cacheline_t request_line = (y + j - 2) % 4;
                   float cached = IMAGE_CACHE[request_line * pixels_per_row +
                                              layer.channels_in * x + ci];
@@ -388,17 +389,26 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
           }
           printf(")\n");
 
-          if (is_preload_col) { // not enough cols buffered; next ci
+          /*printf("AA[%d] Contents: \n[", (int)current_aa);
+          for (int j = 0; j < 3; j++) {
+            for (int i = 0; i < 3; i++) {
+              printf(" %9.3f ", ACTIVE_AREA[current_aa][j * 3 + i]);
+            }
+            if (j < 2) printf("]\n[");
+          }
+          printf("]\n");*/
+
+          if (is_preload_col) {  // not enough cols buffered; next ci
             printf("               skip to next channel (preload column)\n");
             continue;
           }
 
-          if ((layer.stride == 2) & (y % 2)) { // odd row left out in stride2
+          if ((layer.stride == 2) & (y % 2)) {  // odd row left out in stride2
             printf("               skip to next channel (odd row, S=2)\n");
             continue;
           }
 
-          if ((layer.stride == 2) & (x % 2)) { // odd col left out in stride2
+          if ((layer.stride == 2) & (x % 2)) {  // odd col left out in stride2
             printf("               skip to next channel (odd col, S=2)\n");
             continue;
           }
@@ -410,29 +420,23 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
 
           for (co = 0; co < layer.channels_out;
                co += num_ch_out_per_convolution) {
-
+            // Print Infos about Channels being convolved:
             if (co == 0)
+              // General, Type of Operation
               printf("               %dx MACC (%dx%d), channels: ",
                      (int)layer.channels_out, (int)layer.kernel,
                      (int)layer.kernel);
-
             for (int l = 0; l < num_ch_out_per_convolution; l++) {
               if ((co + l) < layer.channels_out) {
+                // Notification for each valid In->Out Conv Operation
                 printf("(%d>%d) ", (int)ci, (int)co + l);
               }
             }
-            if (layer.kernel == 1)
-              printf("[packed] ");
-
-            /*printf("# LAYER %2d, ROW %3d/%3d, COL: %3d/%3d, "
-                   "CH_IN: %2d/%2d, CH_OUT: %2d/%2d: ",
-                   (int)current_layer, (int)y, (int)layer.height - 1, (int)x,
-                   (int)layer.width - 1, (int)ci, (int)layer.channels_in - 1,
-                   (int)co, (int)layer.channels_out - 1);
-            */
+            if (layer.kernel == 1) printf("[packed] ");
 
             ////////////////////////
             /// 2D CONVOLUTION (for this output channel)
+            //
 
             float conv2D = 0;
             float products[9];
@@ -442,56 +446,67 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
             /// Loop Level 6: Kernel H (j)
             /// Loop Level 7: Kernel W (i)
 
+            // printf("\n");
             for (j = 0; j < 3; j++) {
 #pragma HLS unroll
               for (i = 0; i < 3; i++) {
 #pragma HLS unroll
                 // Filter Arrangement in Memory:
                 // ch_in -> ch_out -> kernel_h -> kernel_w
-                // for 3x3: ch_in -> ch_out -> 9
-                // for 1x1: ch_in -> ch_out -> 1
-                int filter_addr =
-                    ci * (layer.channels_out * 9) + co * 9 + j * 3 + i;
+                // for 3x3: ch_in -> 1x ch_out -> 3x3
+                // for 1x1: ch_in -> 9x ch_out -> 1x1
+                weightaddr_t filter_addr =
+                    ci * (layer.channels_out * weights_per_filter) +
+                    co * weights_per_filter + j * 3 + i;
                 float multiply_result = FILTER_CACHE[filter_addr] *
                                         ACTIVE_AREA[current_aa][j * 3 + i];
                 conv2D += multiply_result;
                 products[j * 3 + i] = multiply_result;
+
+                /*printf("filter addr = %d, ", (int)filter_addr);
+                printf(
+                    "filter: %9.3f, pixel: %9.3f %s\n",
+                    FILTER_CACHE[filter_addr],
+                    ACTIVE_AREA[current_aa][j * 3 + i],
+                    (co + (j * 3 + i) < layer.channels_out | layer.kernel == 3)
+                        ? "(valid)"
+                        : "(invalid!)");*/
               }
             }
+            // printf("\n");
 
             // Write to Output Cache
             // For 3x3 Kernel: Write MACC Result to Output Cache
             if (layer.kernel == 3) {
               if (ci == 0) {
-                // printf("initialize output cache %d\n", (int)co);
-                OUTPUT_CACHE[co] = conv2D + 0;
-                printf("i");
+                OUTPUT_CACHE[co] = conv2D;
+                printf("i(%6.2f)", OUTPUT_CACHE[co]);
               } else {
-                // printf("update     output cache %d\n", (int)co);
-                OUTPUT_CACHE[co] = conv2D + OUTPUT_CACHE[co];
-                printf("u");
+                OUTPUT_CACHE[co] += conv2D;
+                printf("u(%6.2f)", OUTPUT_CACHE[co]);
               }
             } else if (layer.kernel == 1) {
               // For 1x1 Kernel: Write 9 Multiply-Results to Cache
               for (int l = 0; l < 9; l++) {
                 if ((co + l) < layer.channels_out) {
-                  if (ci == 0 & !is_last_layer) {
-                    OUTPUT_CACHE[co + l] = products[l] + 0;
-                    printf("i");
+                  // Reset Output Cache for First Input Channel.
+                  if (ci == 0) {
+                    OUTPUT_CACHE[co + l] = products[l];
+                    printf("i(%6.2f)", OUTPUT_CACHE[co + l]);
                   } else {
-                    OUTPUT_CACHE[co + l] = products[l] + OUTPUT_CACHE[co + l];
-                    printf("u");
+                    OUTPUT_CACHE[co + l] += products[l];
+                    printf("u(%6.2f)", OUTPUT_CACHE[co + l]);
                   }
                 }
               }
-            } // end else if kernel == 1
+            }  // end else if kernel == 1
 
-          } // end for co
+          }  // end for co
           printf("\n");
 
           // one input channel done.
 
-        } // end for ci
+        }  // end for ci
 
         // one pixel done. (all input channels, all output channels)
 
@@ -525,42 +540,77 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
 
         printf("            saving as pixel(%d,%d)\n", (int)y_out, (int)x_out);
 
-        
         int ch_out = layer.channels_out;
         if (layer.is_expand_layer) {
           // Expand Layers are interleaved -> leave space for 2x channels_out
-          printf("(expand layer, doubling virtual output channels)");
+          printf(
+              "            (expand layer, doubling virtual output channels)\n");
           ch_out = 2 * layer.channels_out;
         }
         float *DRAM_OUTPUT_PIXEL_PTR =
             (DRAM_OUTPUT_PTR + y_out * width_out * ch_out + x_out * ch_out);
-        
-        for (co = 0; co < layer.channels_out; co++) {
 
+        for (co = 0; co < layer.channels_out; co++) {
           float value = OUTPUT_CACHE[co];
 
           //////////
+          /// BIAS
+          printf("            ch%2d Bias: %7.3f->", (int)co, value);
+          weightaddr_t bias_addr =
+              num_weights_in_layer - layer.channels_out + co;
+          // printf("bias addr: %d", (int)bias_addr);
+          float bias = FILTER_CACHE[bias_addr];
+          value += bias;
+          printf("%7.3f, ", value);
+
+          //////////
           /// ReLU
-          printf("            ch%2d: %9.3f->", (int)co, value);
-          if (value < 0)
-            value = 0;
-          printf("%9.3f, ", value);
+          printf("ReLU: %7.3f->", value);
+          if (value < 0) value = 0;
+          printf("%7.3f, ", value);
 
           //////////
           /// Pooling
-          // TODO
-          printf("(pool), ");
+          if (layer.pool != POOL_NONE) {
+            if (layer.pool == POOL_GLOBAL) {
+              // Global Pooling: Does not really average, but just accumulate.
+              // Execute Division by CH_OUT on CPU!
+              if (x_out == 0 & y_out == 0) {
+                GLOBAL_POOL_CACHE[co] = value;
+                printf("(GPOOL i): %9.3f, ", GLOBAL_POOL_CACHE[co]);
+              } else {
+                GLOBAL_POOL_CACHE[co] += value;
+                printf("(GPOOL u): %9.3f, ", GLOBAL_POOL_CACHE[co]);
+              }
+            } else {
+              assert(false && "Pooling Not Implemented!");
+              printf("(pool%d), ", (int)layer.kernel);
+            }
+          }
 
           //////////
           /// Writeback
-          printf("WB(@%lu)\n",
-                 (unsigned long)(DRAM_OUTPUT_PIXEL_PTR + co) & 0xFFFFFFFFFFF);
+          printf("WB(@%lu)\n", (unsigned long)(DRAM_OUTPUT_PIXEL_PTR + co));
           memcpy(DRAM_OUTPUT_PIXEL_PTR + co, &value, sizeof(value));
-        }
 
-      } // end for x
-    }   // end for y
-  }     // end for layer
+        }  // end for co
 
-  printf("\nALL LAYERS DONE!\n");
+        printf("\n");
+
+      }  // end for x
+    }    // end for y
+  }      // end for layer
+
+  printf("\n\nFPGA: ALL LAYERS DONE!\n");
+  printf("Results: [");
+  for (co = 0; co < layer.channels_out;
+       co++) {  // last layer still in registers
+    printf("%9.3f ", GLOBAL_POOL_CACHE[co]);
+  }
+  printf("]\n");
+
+  // Copy Results to beginning of "Data" DRAM
+  memcpy(DRAM_DATA, GLOBAL_POOL_CACHE, layer.channels_out * sizeof(float));
+  printf("FPGA: Copy results back to DRAM (%d Bytes)\n\n",
+         (int)(layer.channels_out * sizeof(float)));
 }
