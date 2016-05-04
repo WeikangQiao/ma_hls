@@ -11,11 +11,16 @@
 
 #include "netconfig.hpp"
 
+// Size Limits for this Network
 const int MAX_NUM_LAYERS = 5;
 const int MAX_WEIGHTS_PER_LAYER = 224;
 const int MAX_IMAGE_CACHE_SIZE = 192;
 const int MAX_NUM_CHOUT = 10;
-//const int MAX_ACTIVE_AREA_SIZE = 27;
+
+// Mean Pixel for ImageNet Data
+const float MEAN_R = 104;
+const float MEAN_G = 117;
+const float MEAN_B = 123;
 
 network_t *get_network_config();
 

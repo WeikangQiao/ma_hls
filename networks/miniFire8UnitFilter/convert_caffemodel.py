@@ -4,15 +4,8 @@
 ## convert_caffemodel.py
 ## (c) 2016 David Gschwend
 ##
-## Usage: python2.7 convert_caffemodel.py <model.prototxt> <snapshot.caffemodel>
+## Usage: python2.7 convert_caffemodel.py [<model.prototxt> <snapshot.caffemodel>]
 #######
-
-
-######
-######   MODIFIED TO INITIALIZE WEIGHTS AND BIAS
-######
-######
-
 
 import os
 import sys
@@ -20,13 +13,27 @@ import struct
 import caffe
 import time
 import numpy as np
+import random
 
+prototxt = "undef"
+caffemodels = "undef"
 if len(sys.argv) == 3:
     prototxt = sys.argv[1]
     caffemodel = sys.argv[2]
-else:
-    print("Usage: %s <model.prototxt> <snapshot.caffemodel>" % sys.argv[0])
+elif len(sys.argv) == 1:
+    prototxts = [file for file in os.listdir(".") if file.endswith(".prototxt")]
+    caffemodels = [file for file in os.listdir(".") if file.endswith(".caffemodel")]
+    if len(prototxts) == 1 and len(caffemodels) == 1: 
+        prototxt = prototxts[0]
+        caffemodel = caffemodels[0]
+    else:
+        print("Error: Multiple .prototxt or .caffemodel files in current directory.")
+
+if prototxt == "undef" or caffemodel == "undef" : 
+    print("Usage: %s [<model.prototxt> <snapshot.caffemodel>]" % sys.argv[0])
     exit(-1)
+    
+print("Using prototxt: {}, caffemodel: {}".format(prototxt, caffemodel))
 
 # Functions to Reshape and Save given Weight/Bias Blob
 def append_filters(weights, blob):
@@ -69,6 +76,8 @@ height_out = net.blobs['data'].height
 # Push all Layer Names into List:
 layer_names = list(net._layer_names)
 layers = []
+
+#import pdb; pdb.set_trace()
 
 for id,layer_name in enumerate(layer_names):
     # doesn't include input "data": not a layer
@@ -160,12 +169,40 @@ for id,layer_name in enumerate(layer_names):
             
             # Count Number of Weights:
             weights_count += ch_in*ch_out*kernel*kernel + ch_out
+            
+            # Set Parameters of All Filter Bank to UNIT FILTER
+            # and ZERO BIAS
+            p = np.array(params[0].data)
+            print "shape of parameters: ", p.shape
+            co = p.shape[0]
+            ci = p.shape[1]
+            kx = p.shape[2]
+            ky = p.shape[3]
+            for i in range(ci):
+                 for o in range(co):
+                     if i == 0:
+                         if kernel == 3:
+                             p[o,i] = np.array([[0,0,0],[0,1,0],[0,0,0]])
+                         elif kernel == 1:
+                             p[o,i] = 1
+                         else:
+                             print("unknown kernel size?")
+                     else:
+                         if kernel == 3:
+                             p[o,i] = np.zeros((3,3))
+                         elif kernel == 1:
+                             p[o,i] = 0
+                         else:
+                             print("unknown kernel size?")
+                         
+            params[0].data[...] = p
+            params[1].data[...] = np.zeros(params[1].data.shape)
                          
             # Append Weights and Biases to List
-            params[0].data[...] = np.ones(params[0].shape)/(kernel*kernel)
-            params[1].data[...] = np.ones(params[1].shape)*2.0
             append_filters(weights, params[0])
             append_bias(weights, params[1])
+            
+            print("In Layer {}, using weights: {} and bias: {}".format(id, params[0].data.flatten()[0], params[1].data.flatten()[0]))
                          
             # Count Number of Layers added:
             layer_count = layer_count + 1
@@ -235,11 +272,16 @@ hfile = """{0}
 
 #include "netconfig.hpp"
 
+// Size Limits for this Network
 const int MAX_NUM_LAYERS = {1};
 const int MAX_WEIGHTS_PER_LAYER = {2};
 const int MAX_IMAGE_CACHE_SIZE = {3};
 const int MAX_NUM_CHOUT = {4};
-//const int MAX_ACTIVE_AREA_SIZE = {5};
+
+// Mean Pixel for ImageNet Data
+const float MEAN_R = 104;
+const float MEAN_G = 117;
+const float MEAN_B = 123;
 
 network_t *get_network_config();
 
@@ -282,7 +324,7 @@ print(cfile)
 
 # Print Confirmation to stdout
 print("REPORT:\n-----------")
-print("%d-layer Network saved to <network.h>" % layer_count)
+print("%d-layer Network saved to <network.{hpp,cpp}>" % layer_count)
 print("%d Weights saved to <weights.bin>" % len(weights))
 
 print("Total Operations took %d seconds on CPU." % time_taken)

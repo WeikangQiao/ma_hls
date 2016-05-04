@@ -19,7 +19,7 @@ network_t *get_network_config() {
   addLayer(net, layer_t("conv10", LAYER_CONV,   4,   4,    8,  10, 1, 0, 1), 0,  1, POOL_GLOBAL);
 
   net->num_weights = 420;
-  char* filename = "weights.bin";
+  const char* filename = "weights.bin";
   loadWeightsFromFile(net, filename);
   return net;
 }

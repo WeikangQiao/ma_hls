@@ -94,17 +94,10 @@ void copy_results_from_FPGA(network_t *net_CPU, float *results, int ch_out) {
   printf("CPU: Copy Results from FPGA DRAM: %d Bytes\n", results_size);
 }
 
-void do_preparation_on_CPU(network_t *net_CPU) {
-  // Assumption: Input Data goes straight to First Layer
-  int win = net_CPU->layers[0].width;
-  int hin = net_CPU->layers[0].height;
-  int chin = net_CPU->layers[0].channels_in;
-
-  // CPU Memory
-  float *input_image = (float *)malloc(win * hin * chin * sizeof(float));
-
+// Fills input_image with pixels of format YYYXXX.0CH (for debugging)
+void generate_structured_input_image(float *input_image, int win, int hin,
+                                     int chin) {
   // STRUCTURED INPUT
-  // Generate Input Image (pixels of format YYYXXX.0CH)
   for (int x = 0; x < win; x++) {
     for (int y = 0; y < hin; y++) {
       for (int ch = 0; ch < chin; ch++) {
@@ -113,13 +106,22 @@ void do_preparation_on_CPU(network_t *net_CPU) {
       }
     }
   }
+}
 
-  // Enable for real randomness:
-  //  srand(time(NULL));
-
+// Fills input_image with random floats between -100 and +100 (for testing)
+// Set seed=-1 to shuffle the random generator
+void generate_random_input_image(float *input_image, int win, int hin, int chin,
+                                 int seed = 1) {
   // Expected Results:
-  // For srand(1) [default] and miniFire8UnitFilter, should get result 4315.492
+  // For seed = 1 [default] and miniFire8UnitFilter, should get result 14154.350
   // for each class.
+
+  // Enable for real randomness: (time() updates every second)
+  if (seed == -1) {
+    srand(time(NULL));
+  } else {
+    srand(seed);
+  }
 
   // RANDOM INPUT
   // Generate Input Image (pixels between +-1, 3 places after zero)
@@ -132,7 +134,37 @@ void do_preparation_on_CPU(network_t *net_CPU) {
       }
     }
   }
+}
 
+// Loads input_image with data from given file
+// (should be prepared using convert_image.py)
+void load_prepared_input_image(float *input_image, const char *filename,
+                               int win, int hin, int chin) {
+  // load from given file...
+  int num_pixels = win * hin * chin;
+  printf("Loading Input from File %s, %lu Bytes.\n", filename,
+         num_pixels * sizeof(float));
+  FILE *filehandle = fopen(filename, "r");
+  // read portion of input file
+  fread(input_image, sizeof(float), num_pixels, filehandle);
+  fclose(filehandle);
+}
+
+void load_image_file(float *input_image, const char *filename, int win, int hin,
+                     int chin) {}
+
+void do_preprocess(float *input_image, int win, int hin, int chin) {
+  for (int y = 0; y < hin; y++) {
+    for (int x = 0; x < win; x++) {
+      // Subtract Mean Pixel (defined in network.hpp)
+      input_image[y * win * chin + x * chin + 0] -= MEAN_R;
+      input_image[y * win * chin + x * chin + 1] -= MEAN_G;
+      input_image[y * win * chin + x * chin + 2] -= MEAN_B;
+    }
+  }
+}
+
+void do_preparation_on_CPU(network_t *net_CPU) {
   // Print Network Config
   printf("\n\nNetwork Setup on CPU:\n=====================\n\n");
   print_layers(net_CPU);
@@ -144,6 +176,22 @@ void do_preparation_on_CPU(network_t *net_CPU) {
   // Copy Network Config: CPU Memory -> FPGA DRAM Memory
   printf("CPU: Copy Layer Config + Weights to FPGA DRAM:\n");
   copy_config_to_FPGA(net_CPU);
+
+  // Copy Input Image to Memory:
+  int win = net_CPU->layers[0].width;
+  int hin = net_CPU->layers[0].height;
+  int chin = net_CPU->layers[0].channels_in;
+  float *input_image = (float *)malloc(win * hin * chin * sizeof(float));
+
+  // generate_structured_input_image(input_image,win,hin,chin);
+  // pseudo-random input
+  // generate_random_input_image(input_image, win, hin, chin, 1);
+  // really random input (srand-shuffled)
+  // generate_random_input_image(input_image, win, hin, chin, -1);
+  // load from image file (prepared by convert_image.py):
+  load_prepared_input_image(input_image, "./indata.bin", win, hin, chin);
+  // load_image_file(input_image, "./puppy-500x350.jpg", win, hin, chin);
+  // do_preprocess(input_image, win, hin, chin);
 
   printf("CPU: Copy Input Image to FPGA DRAM:\n");
   copy_input_image_to_FPGA(net_CPU, input_image);
@@ -166,8 +214,9 @@ int main() {
   ///////
 
   fpga_top(net_CPU->num_layers, (int *)DRAM,
-           (long)DRAM_LAYER_CONFIG - (long)DRAM,
-           (long)DRAM_WEIGHTS - (long)DRAM, (long)DRAM_DATA - (long)DRAM);
+           (unsigned long)DRAM_LAYER_CONFIG - (unsigned long)DRAM,
+           (unsigned long)DRAM_WEIGHTS - (unsigned long)DRAM,
+           (unsigned long)DRAM_DATA - (unsigned long)DRAM);
 
   ///////
   // Copy Results back from FPGA
@@ -183,18 +232,38 @@ int main() {
   // p_i = e^{r_i} / (\sum(e^{r_i}))
   ///////
 
+  // First, finish AVERAGE Pooling (FPGA does just accumulation, no division)
+  // Then, subtract maximum to avoid Numerical Issues in Exponentiation
+  // Divide by WxH of Output Maps:
+  int w = net_CPU->layers[net_CPU->num_layers - 1].width;
+  int h = net_CPU->layers[net_CPU->num_layers - 1].height;
+  if (net_CPU->layers[net_CPU->num_layers - 1].stride == 2) {
+    w /= 2;
+    h /= 2;
+  }
+  float out_dim = w * h;
+  float maxresult = 0;
+  DBG("average: ");
+  for (int i = 0; i < ch_out; i++) {
+    results[i] /= out_dim;
+    maxresult = std::fmax(maxresult, results[i]);
+    DBG(" %6.2f ", results[i]);
+  }
+  DBG(" (maximum: %6.2f)\n", maxresult);
+  
   // Calculate Exponentials and Sum
   float expsum = 0;
+  std::vector<float> exponentials(ch_out);
   for (int i = 0; i < ch_out; i++) {
-    // FPGA just does "accumulate-pooling", not average -> Divide on CPU!
-    results[i] = exp(results[i] / ch_out);
-    expsum += results[i];
+    exponentials[i] = exp(results[i] - maxresult);
+    expsum += exponentials[i];
   }
+  DBG("sum of exponentials: %f\n", expsum);
 
   // Calculate Probabilities
   std::vector<std::pair<float, int> > probabilities(ch_out);
   for (int i = 0; i < ch_out; i++) {
-    probabilities[i] = std::pair<float, int>(results[i] / expsum, i);
+    probabilities[i] = std::pair<float, int>(exponentials[i] / expsum, i);
     // printf("P(class %3d) = %4.2f%%\n", i, 100 * probabilities[i].first);
   }
 
@@ -205,7 +274,8 @@ int main() {
          100 * probabilities[0].first);
   printf("Top-5:\n");
   for (int i = 0; i < std::min(5, ch_out); i++) {
-    printf("    %4.2f%%: class %d\n", 100 * probabilities[i].first,
-           probabilities[i].second);
+    printf("    %4.2f%%: class %3d (output %6.2f)\n",
+           100 * probabilities[i].first, probabilities[i].second,
+           results[probabilities[i].second]);
   }
 }
