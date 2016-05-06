@@ -66,8 +66,11 @@ layer_count = 0
 weights_count = 0
 weights_cache_needed = 0
 image_cache_needed = 0
-output_cache_needed = 0
+max_num_chout = 0
 max_active_area = 0
+max_image_cache = 0
+max_dimension = 0
+max_channels = 0
 
 # manually initialize width/height for first layer
 width_out  = net.blobs['data'].width
@@ -182,14 +185,15 @@ for id,layer_name in enumerate(layer_names):
             # Update Maximum necessary Cache sizes:
             weights_size = ch_in*ch_out*kernel*kernel + ch_out;
             input_size = ch_in*width_in*height_in;
-            if (weights_size > weights_cache_needed):
-                weights_cache_needed = weights_size
-            if (input_size > image_cache_needed):
-                image_cache_needed = input_size
-            if (ch_out > output_cache_needed):
-                output_cache_needed = ch_out
-            if (ch_in*kernel*kernel > max_active_area):
-                max_active_area = ch_in*kernel*kernel
+            pixels_per_row = ch_in*width_in;
+            image_cache_size = 4*pixels_per_row;
+            max_image_cache = max(max_image_cache, input_size)
+            weights_cache_needed = max(weights_cache_needed, weights_size)
+            image_cache_needed = max(image_cache_size, image_cache_needed)
+            max_num_chout = max(ch_out, max_num_chout)
+            max_active_area = max(ch_in*kernel*kernel, max_active_area)
+            max_dimension = max(max_dimension, max(width_in, height_in))
+            max_channels = max(max_channels, max(ch_in, ch_out))
             
             
         # POOLING LAYERS: Modify Previous CONV Layer
@@ -238,28 +242,34 @@ header = """
 // (c) 2016 David Gschwend
 ///////
 """.format(prototxt, caffemodel)
-hfile = """{0}
+hfile = """{}
 #ifndef _NETWORK_H_
 #define _NETWORK_H_
 
-#include "netconfig.hpp"
-
 // Size Limits for this Network
-const int MAX_NUM_LAYERS = {1};
-const int MAX_WEIGHTS_PER_LAYER = {2};
-const int MAX_IMAGE_CACHE_SIZE = {3};
-const int MAX_NUM_CHOUT = {4};
+const int MAX_NUM_LAYERS = {};
+const int MAX_WEIGHTS_PER_LAYER = {};
+const int MAX_IMAGE_CACHE_SIZE = {};
+const int MAX_INPUT_PER_LAYER = {};
+const int MAX_NUM_CHOUT = {};
+const int TOTAL_NUM_WEIGHTS = {};
+const int MAX_DIMENSION = {};
+const int MAX_CHANNELS = {};
 
 // Mean Pixel for ImageNet Data
 const float MEAN_R = 104;
 const float MEAN_G = 117;
 const float MEAN_B = 123;
 
+// include after definitions to allow bit-width calculations
+#include "netconfig.hpp"
+
 network_t *get_network_config();
 
 #endif
-""".format(header, layer_count, weights_cache_needed,
-           image_cache_needed, output_cache_needed, max_active_area)
+""".format(header, layer_count, weights_cache_needed,image_cache_needed,
+           max_image_cache, max_num_chout, weights_count, max_dimension,
+           max_channels)
           
 # double braces in function definition needed because of python's str.format()!
 cfile = """{0}

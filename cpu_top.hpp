@@ -1,15 +1,22 @@
 #ifndef _FPGA_SIMULATOR_H_
 #define _FPGA_SIMULATOR_H_
 
-#include <cstdio>
-#include <vector>
-#include <utility>
-#include <algorithm>
-#include <time.h>       /* time */
+// ========================
+// = Standard C Libraries =
+// ========================
+#include <cstdio>  // printf
+#include <ctime>   // time() for random seed
+#include <vector>  // std::vector for softmax calculation
 
-#include "netconfig.hpp"
-#include "network.hpp"
+// ===========================
+// = CNN Network Definitions =
+// ===========================
+#include "network.hpp"    // load before netconfig.hpp for bit-width calculation
+#include "netconfig.hpp"  // network config (layer_t, network_t)
 
-#include "fpga_top.hpp"
-  
+// ==================
+// = FPGA Algorithm =
+// ==================
+#include "fpga_top.hpp"  // top-level FPGA module
+
 #endif

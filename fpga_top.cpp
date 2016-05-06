@@ -16,32 +16,62 @@
 
 #include "network.hpp"
 
-///////////////
-///////////////
-// WARNING   //
-///////////////
-// DISABLES ALL PRINTF STATEMENTS!
-///////////////
-//#define printf(...) {};
-///////////////
-// WARNING   //
-///////////////
-///////////////
-
 // FPGA BRAM Memory
-int NUM_LAYERS;
-float FILTER_CACHE[MAX_WEIGHTS_PER_LAYER];
-float IMAGE_CACHE[MAX_IMAGE_CACHE_SIZE];
-float ACTIVE_AREA[TILING_CI][9];
-float OUTPUT_CACHE[MAX_NUM_CHOUT];
-float GLOBAL_POOL_CACHE[MAX_NUM_CHOUT];
 layer_t BRAM_LAYER_CONFIG[MAX_NUM_LAYERS];
+data_t WEIGHTS_CACHE[MAX_WEIGHTS_PER_LAYER];
+data_t IMAGE_CACHE[MAX_IMAGE_CACHE_SIZE];
+data_t ACTIVE_AREA[TILING_CI][9];
+data_t OUTPUT_CACHE[MAX_NUM_CHOUT];
+data_t GLOBAL_POOL_CACHE[MAX_NUM_CHOUT];
 
-void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
+// Shared DRAM Memory Pointers
+layer_t *DRAM_LAYERCONFIG;
+data_t *DRAM_WEIGHTS;
+data_t *DRAM_DATA;
+data_t *DRAM_WEIGHTS_PTR;       // current layer weights (mem region start)
+data_t *DRAM_INPUT_PTR;         // current layer's input (mem region start)
+data_t *DRAM_OUTPUT_PTR;        // current layer's output (mem region start)
+data_t *DRAM_INPUT_PIXEL_PTR;   // current input pixel
+data_t *DRAM_OUTPUT_PIXEL_PTR;  // current output pixel
+
+// Layer-Specific Registers / Wires
+layer_t layer;
+layerid_t current_layer;
+dimension_t width_in, height_in;
+dimension_t width_out, height_out;
+channel_t ch_in, ch_out;
+kernel_t kernel;
+stride_t stride;
+bool pad;
+pixelperrow_t pixels_per_row;                 // ch_in * width_in
+numfilterelems_t num_ch_out_per_convolution;  // 9 for 1x1 conv, 1 for 3x3 conv
+numfilterelems_t weights_per_filter;          // 1 for 1x1 conv, 9 for 3x3 conv
+
+channel_t ci, co;           // current input/output channel
+coordinate_t x, y;          // coordinates of input pixel
+coordinate_t y_out, x_out;  // coordinates of output pixel
+imgdramoffset_t img_dram_offset;
+cacheline_t curr_img_cache_line;
+imgcacheaddr_t img_cache_addr;
+
+// ====================
+// = Main FPGA Module =
+// ====================
+//
+// DRAM:
+//    AXI4 Master Bus Interface to Memory
+//
+// num_layers, byte_..._offset:
+//    AXI4 Slave Interface. Registers that hold information on where to
+//    fetch actual configuration from in DRAM.
+//
+void fpga_top(volatile bus_t *DRAM, unsigned int num_layers,
               unsigned int byte_layerconfig_offset,
               unsigned int byte_weights_offset,
               unsigned int byte_input_offset) {
-// Interface Specification:
+// ===========================
+// = Interface Specification =
+// ===========================
 
 // AXI4 Master
 // ap_bus + AXI4 Master for connection to DRAM (via DMA)
@@ -64,136 +94,118 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
 #pragma HLS RESOURCE core = AXI4LiteS variable = input_offset metadata = \
     "-bus_bundle LITE"
 
-  printf("Start FPGA Module:\n====================\n\n");
+  printf("\nStart FPGA Module:\n====================\n\n");
 
-  // DRAM Memory Pointers
-  layer_t *DRAM_LAYERCONFIG =
-      (layer_t *)((char *)DRAM + byte_layerconfig_offset);
-  float *DRAM_WEIGHTS = (float *)((char *)DRAM + byte_weights_offset);
-  float *DRAM_DATA = (float *)((char *)DRAM + byte_input_offset);
-  float *DRAM_OUTPUT_PIXEL_PTR;
+  // ======================================
+  // = Initial Setup (DRAM, Layer Config) =
+  // ======================================
 
-  printf("FPGA: Fetch Layer Configuration from DRAM to BRAM\n");
+  // Setup Pointers into shared DRAM
+  DRAM_LAYERCONFIG = (layer_t *)((char *)DRAM + byte_layerconfig_offset);
+  DRAM_WEIGHTS = (data_t *)((char *)DRAM + byte_weights_offset);
+  DRAM_DATA = (data_t *)((char *)DRAM + byte_input_offset);
 
-  int layercfg_size = num_layers * sizeof(layer_t);
-  memcpy(BRAM_LAYER_CONFIG, DRAM_LAYERCONFIG, layercfg_size);
+  // Fetch Layer Configuration
+  int cfg_bytes = num_layers * sizeof(layer_t);
+  memcpy(BRAM_LAYER_CONFIG, DRAM_LAYERCONFIG, cfg_bytes);
+  printf("FPGA: Fetch Layer Config from DRAM to BRAM: (%d Bytes)\n", cfg_bytes);
 
-  DBG("Bytes copied: %d Bytes\n", (int)layercfg_size);
-
-  // Global Registers
-
-  layer_t layer;
-  layernum_t current_layer;
-  coordinate_t x, y;
-  coordinate_t y_out, x_out;
-  dimension_t width_out, height_out;
-  channel_t ci;
-  channel_t co;
-  cacheline_t current_img_cache_line;
-  imgcacheaddr_t img_cache_addr;
-  imgcacheaddr_t img_dram_offset;
-  weightaddr_t weight_addr;
-  pixelperrow_t pixels_per_row;
-
-  ////////////////////////
-  /// Loop Level 1: Layers
-  //
+// ========================
+// = Loop Level 1: Layers =
+// ========================
+L_LAYERS:
   for (current_layer = 0; current_layer < num_layers; current_layer++) {
-    // Load Layer Configuration from BRAM
-
+    // ============================
+    // = Load Layer Configuration =
+    // ============================
     layer = BRAM_LAYER_CONFIG[current_layer];
-    printf("\nL%-2d", (int)current_layer);
+
+    // Print Layer Infos
+    printf("L%-2d", (int)current_layer);
     printf("%-6s ", layer.name);
+    printf("convolution layer, K=%d, S=%d, P=%d\n", (int)layer.kernel,
+           (int)layer.stride, (int)layer.pad);
 
-    if (layer.type == LAYER_DATA) {
-      DBG("data layer: nothing to be done, skip.\n");
-      continue;
-    }
-    if (layer.type == LAYER_POOL) {
-      DBG("!! pooling layer: cannot execute, skip.\n");
-      continue;
-    }
-    if (layer.type == LAYER_CONV) {
-      printf("convolution layer, K=%d, S=%d, P=%d\n", (int)layer.kernel,
-             (int)layer.stride, (int)layer.pad);
-    }
-
+    // Debug Output: Memory Addresses
     DBG("    mem_addr_input: %d, mem_addr_output: %d, mem_addr_weights: %d\n",
         layer.mem_addr_input, layer.mem_addr_output, layer.mem_addr_weights);
 
+    // ============================
+    // = Constraints / Assertions =
+    // ============================
     // Assertions / Constraints to enable Optimizations:
     assert(layer.width == 0 | layer.width == 1 | layer.width == 2 |
            layer.width == 4 | layer.width == 8 | layer.width == 16 |
            layer.width == 32 | layer.width == 64 | layer.width == 128 |
-           layer.width == 256 | layer.width == 512 | layer.width == 1024);
+           layer.width == 256);
     assert(layer.width == 0 | layer.height == 1 | layer.height == 2 |
            layer.height == 4 | layer.height == 8 | layer.height == 16 |
            layer.height == 32 | layer.height == 64 | layer.height == 128 |
-           layer.height == 256 | layer.height == 512 | layer.height == 1024);
+           layer.height == 256);
     assert(layer.channels_in == 1 | layer.channels_in == 2 |
            layer.channels_in == 3 | layer.channels_in == 4 |
            layer.channels_in == 8 | layer.channels_in == 16 |
            layer.channels_in == 32 | layer.channels_in == 64 |
            layer.channels_in == 128 | layer.channels_in == 256 |
-           layer.channels_in == 512 | layer.channels_in == 1024 |
-           layer.channels_in == 1000);
+           layer.channels_in == 512);
     assert(layer.channels_out == 1 | layer.channels_out == 2 |
            layer.channels_out == 4 | layer.channels_out == 8 |
            layer.channels_out == 10 | layer.channels_out == 16 |
            layer.channels_out == 32 | layer.channels_out == 64 |
            layer.channels_out == 128 | layer.channels_out == 256 |
-           layer.channels_out == 512 | layer.channels_out == 1024 |
-           layer.channels_out == 1000);
+           layer.channels_out == 512 | layer.channels_out == 1000);
     assert(layer.pad == 0 | layer.pad == 1);
     assert(layer.stride == 1 | layer.stride == 2);
     assert(layer.kernel == 1 | layer.kernel == 3);
     // Make sure that all 3x3 kernels use padding, all 1x1 kernels don't.
-    assert((layer.kernel == 3 & layer.pad == 1) |
-           (layer.kernel == 1 & layer.pad == 0) | (layer.type == LAYER_POOL));
+    assert((layer.kernel == 3 & layer.pad) | (layer.kernel == 1 & !layer.pad));
 
-    // Setup Layer-Specific Registers:
+    // ===================================
+    // = Layer-Specific Global Registers =
+    // ===================================
+    width_in = layer.width;
+    height_in = layer.height;
+    ch_in = layer.channels_in;
+    ch_out = layer.channels_out;
+    kernel = layer.kernel;
+    stride = layer.stride;
+    pad = layer.pad;
+    width_out = (stride == 2) ? (width_in / 2) : (width_in / 1);
+    height_out = (stride == 2) ? (height_in / 2) : (height_in / 1);
+    pixels_per_row = width_in * ch_in;
 
-    width_out = layer.width;
-    height_out = layer.height;
-    if (layer.stride == 2) {
-      width_out = width_out / 2;
-      height_out = height_out / 2;
-    }
-    pixels_per_row = layer.width * layer.channels_in;
+    // ==================================
+    // = Image Cache Setup (DRAM Input) =
+    // ==================================
+    // Set DRAM Memory Pointer
+    DRAM_INPUT_PTR = ((data_t *)DRAM_DATA + layer.mem_addr_input);
 
-    // Setup Image Cache
+    // Debug: Print Infos about Image Cache Addresses
+    DBG("    setup image cache: fetch from %lu (preload %dkB, total %dkB)\n",
+        (long)DRAM_INPUT_PTR, pixels_per_row * sizeof(data_t) / 1024,
+        pixels_per_row * height_in * sizeof(data_t) / 1024);
 
-    float *DRAM_INPUT_PTR = ((float *)DRAM_DATA + layer.mem_addr_input);
-    int BYTES_PER_ROW = pixels_per_row * sizeof(float);
-    int BYTES_PER_IMG = layer.height * BYTES_PER_ROW;
-    DBG(
-        "    setup image cache:   will fetch from %lu (preload %dkB, total "
-        "%dkB)\n",
-        (unsigned long)DRAM_INPUT_PTR, BYTES_PER_ROW / 1024,
-        BYTES_PER_IMG / 1024);
+    // =======================
+    // = Weights Cache Setup =
+    // =======================
+    // Copy Layer Weights from DRAM -> BRAM
+    DRAM_WEIGHTS_PTR = ((data_t *)DRAM_WEIGHTS + layer.mem_addr_weights);
+    int num_weights_in_layer = ch_in * ch_out * kernel * kernel + ch_out;
+    int weights_size_bytes = num_weights_in_layer * sizeof(data_t);
+    DBG("    setup weights cache: will fetch from %lu (%dkB)\n",
+        (unsigned long)DRAM_WEIGHTS_PTR, weights_size_bytes / 1024);
+    memcpy(WEIGHTS_CACHE, DRAM_WEIGHTS_PTR, weights_size_bytes);
 
-    // Setup Weights Cache
+    // ======================
+    // = Output Cache Setup =
+    // ======================
+    // Set DRAM Memory Pointer (to beginning of output section)
+    data_t *DRAM_OUTPUT_PTR = ((data_t *)DRAM_DATA + layer.mem_addr_output);
 
-    int num_weights_in_layer =
-        layer.kernel * layer.kernel * layer.channels_in * layer.channels_out +
-        layer.channels_out;
-    if (layer.type == LAYER_CONV) {
-      float *DRAM_WEIGHTS_PTR =
-          ((float *)DRAM_WEIGHTS + layer.mem_addr_weights);
-      int FILTER_BYTES = num_weights_in_layer * sizeof(float);
-      DBG("    setup weights cache: will fetch from %lu (%dkB)\n",
-          (unsigned long)DRAM_WEIGHTS_PTR, FILTER_BYTES / 1024);
-      memcpy(FILTER_CACHE, DRAM_WEIGHTS_PTR, FILTER_BYTES);
-      weight_addr = 0;
-    }
-
-    // Setup Output Cache
-    float *DRAM_OUTPUT_PTR = ((float *)DRAM_DATA + layer.mem_addr_output);
-
-    // Setup Convolution Kernels
-    int num_ch_out_per_convolution;
-    int weights_per_filter;
-    if (layer.kernel == 3) {
+    // ==========================================
+    // = Convolution Kernel Setup (1x1 vs. 3x3) =
+    // ==========================================
+    if (kernel == 3) {
       num_ch_out_per_convolution = 1;
       weights_per_filter = 9;
     } else {
@@ -203,8 +215,9 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
     assert(num_ch_out_per_convolution == 1 | num_ch_out_per_convolution == 9);
     assert(weights_per_filter == 1 | weights_per_filter == 9);
 
-    ////////////////////////
-    /// Loop Level 2: Rows Y
+    // ========================
+    // = Loop Level 2: Rows Y =
+    // ========================
 
     // Convolution Scheduling:
     // =======================
@@ -214,110 +227,115 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
     // need 1 row padding (not necessarily executed)
     // need 1 row preload
     // then (1px padding, 1px preload, width pixels convolutions) x (height)
-    // Y: (-1), 0, 1, 2, ... , H-1, H  -1,H = pad  0 = preload  1..H = output
-    // X: (-1), 0, 1, 2, ... , W-1, W  -1,W = pad  0 = preload  1..W = output
+    // Y: (-1), 0, 1, 2, ... , H-1, H | (-1),H = pad  0 = preload  1..H = output
+    // X: (-1), 0, 1, 2, ... , W-1, W | (-1),W = pad  0 = preload  1..W = output
     // Output Coord: Yout = Y-1 (0..H-1), Xout = X-1 (0..W-1)
     // Total: (WIDTH+2) x (HEIGHT+2) Operations, (WIDTH) x (HEIGHT) Outputs
+    // -> Y=(-1) is unnecessary (padding handled in AA SREG) -> left away.
     //
-    // Case 2: 1x1, NO Padding, NOT Packed
-    // ````````````````````````````
-    // (no preload, width pixels convolutions) x (height rows)
-    // Total: WIDTH x HEIGHT Operations
-    //
-    // Case 3: 1x1, Packed into 3x3 Kernel
-    // ````````````````````````````
-    // -> ActiveArea contains 9x same pixel, Filter contains 9 output channels
+    // Case 2: 1x1, no padding, Packed into 3x3 "kernel"
+    // ````````````````````````````````````````````````````
+    // -> ActiveArea contains 9x same pixel, same input channel.
+    //    Filter contains 9 different output channels (for given input channel).
     // no padding, no preload
     // then (width pixels convolutions) x (height)
-    // filter loading in batches of 9 (output channel loop)
+    // Y: 0, 1, 2, ... , H-1     |    0..H-1 = output
+    // X: 0, 1, 2, ... , W-1     |    0..W-1 = output
+    // Output Coord: Yout = Y, Xout = X
     // Total: WIDTH x HEIGHT Operations
+    // -> filter loading in batches of 9 (output channel loop)
     //
 
+    // ========================
+    // = Loop Level 2: Rows Y =
+    // ========================
     DBG("    start processing rows...\n");
 
-    for (y = -layer.pad; y < layer.height + layer.pad; y++) {
-      if (y == -1) {  // top padding row, nothing to do.
-        DBG("        skip top padding row\n");
-        continue;
-      }
-
-      // Allow Optimizations based on possible values of y:
-      assert(y >= 0 & y <= layer.height);
+  L_Y:
+    for (y = 0; y < height_in + pad; y++) {
+      // Conv3x3: pad=1 and Y = 0 ... H
+      // Conv1x1: pad=0 and Y = 0 ... H-1
+      // y=(-1) is unnecessary, padding handled in AA SREG -> left away
 
       DBG("L%-2dR%-3d ", (int)current_layer, (int)y);
 
-      // Setup Image Cache:
-      /////////
+      // ==================================
+      // = Image Cache Setup (Line / Row) =
+      // ==================================
 
       // Set Image Cache Row (defines where to fetch to, and permutation)
-
-      current_img_cache_line = y % 4;
+      curr_img_cache_line = y % NUM_IMG_CACHE_LINES;
 
       // Set Cache + DRAM Addresses to pixel 0, channel 0 of current row.
       // Image Cache + DRAM are linearly accessed.
-
-      img_cache_addr = pixels_per_row * current_img_cache_line;
+      img_cache_addr = pixels_per_row * curr_img_cache_line;
       img_dram_offset = pixels_per_row * y;
 
-      DBG("setup image cache: to cache line %d, addr %d; DRAM offset %d\n",
-          (int)current_img_cache_line, (int)img_cache_addr,
-          (int)img_dram_offset);
+      DBG("setup image cache: from DRAM offset %d, to cache addr %d (line%d)\n",
+          (int)img_dram_offset, (int)img_cache_addr, (int)curr_img_cache_line);
 
-      ////////////////////////
-      /// Loop Level 3: Columns X
-      //
-
+      // ===========================
+      // = Loop Level 3: Columns X =
+      // ===========================
       DBG("        start processing columns...\n");
 
-      for (x = -layer.pad; x < layer.width + layer.pad; x++) {
+    L_X:
+      for (x = -pad; x < width_in + pad; x++) {
+        // Conv3x3: pad=1 and X = -1 ... H
+        // Conv1x1: pad=0 and X =  0 ... H-1
+
         DBG("L%-2dR%-3dC%-3d ", (int)current_layer, (int)y, (int)x);
 
-        // Calculate Coordinates of Output Pixel
-        x_out = x;
-        y_out = y;
-        if (layer.kernel == 3) {
-          x_out -= 1;
-          y_out -= 1;
-        }
-        if (layer.stride == 2) {
-          y_out = y_out / 2;
-          x_out = x_out / 2;
-        }
+        // ============================
+        // = Output Pixel Coordinates =
+        // ============================
+        // Conv3x3: pad=1 and Xout = X-1
+        // Conv1x1: pad=0 and Xout = X
+        // Stride 2: Xout = X/2
+        x_out = (kernel == 3) ? (x - 1) : (x - 0);
+        y_out = (kernel == 3) ? (y - 1) : (y - 0);
+        x_out = (stride == 2) ? x_out / 2 : x_out / 1;
+        y_out = (stride == 2) ? y_out / 2 : y_out / 1;
 
-        // Check type of current Pixel:
-        // For kernel 3x3 (with padding):
-        // Y: 0, 1,..., H-1, H             H = pad  0 = preload  1..H = output
-        // X: (-1), 0, 1,..., W-1, W    -1,W = pad  0 = preload  1..W = output
-        // For kernel 1x1, packed3x3 (no padding):
-        // (no preload, width pixels convolutions) x (height rows)
+        // ==============================
+        // = Padding / Preloading Flags =
+        // ==============================
+        // Type of current Pixel:
+        // * Kernel 3x3 (with padding):
+        //   Y: 0, 1,..., H-1, H             H = pad  0 = preload  1..H = output
+        //   X: (-1), 0, 1,..., W-1, W    -1,W = pad  0 = preload  1..W = output
+        // * Kernel 1x1, packed3x3 (no padding):
+        //   (no preload, no padding, width pixels convolutions) x (height rows)
 
-        bool is_preload_row = (layer.pad & (y == 0));  // don't push to AA SREG
-        bool do_pad_top_row =
-            (layer.pad & (y == 1));  // pad top row (row0)  of AA SREG
-        bool do_pad_bot_row =
-            (layer.pad &
-             (y == layer.height));  // pad bottom row (row2) of AA SREG
+        // Preload Row: Load to Image Cache, but don't push to ActiveArea SREG
+        bool is_preload_row = (pad & (y == 0));
+        // Preload Col: Load to Image Cache, push to AA SREG, but no convolution
+        bool is_preload_col = (pad & ((x == -1) | (x == 0)));
 
-        bool is_preload_col = (layer.pad & ((x == -1) | (x == 0)));  // no conv
-        bool do_pad_curr_col = (layer.pad & ((x == -1) | (x == layer.width)));
+        // Padding: Load zero into given row/col of AA SREG
+        bool do_pad_top_row = (pad & (y == 1));          // pad top row (row0)
+        bool do_pad_bot_row = (pad & (y == height_in));  // pad row2
+        bool do_pad_curr_col = (pad & ((x == -1) | (x == width_in)));
 
+        // Valid Input Coordinate: Exists in Input Memory, can load
         bool is_valid_input_coord =
-            ((x >= 0) & (x < layer.width)) & ((y >= 0) & (y < layer.height));
+            ((x >= 0) & (x < width_in)) & ((y >= 0) & (y < height_in));
 
-        // Odd rows/cols:
-        // THE RATIONAL WAY:
-        // We want to keep (output) rows/cols [0, 2, 4, 6, ...]
-        // If we have 3x3 and pad=1, this is x or y = [1, 3, 5, ...]
-        // If we have 1x1 and pad=0, this is x or y = [0, 2, 4, ...]
-        // -> all other x/y are considered 'odd' and skipped:
-        // for pad=1, skip 0,2,4,... (x%2==0)
-        // for pad=0, skip 1,3,5,... (x%2==1)
-        bool is_odd_input_row = ((layer.pad == 0) & (y % 2 == 1)) |
-                                ((layer.pad == 1) & (y % 2 == 0));
-        bool is_odd_input_col = ((layer.pad == 0) & (x % 2 == 1)) |
-                                ((layer.pad == 1) & (x % 2 == 0));
+        // =====================
+        // = Stride-2 Handling =
+        // =====================
+        // Need to keep output rows/cols [0, 2, 4, 6, ...]
+        // Conv3x3 and pad=1: corresponds to x and y in [1, 3, 5, ...]
+        // Conv1x1 and pad=0: corresponds to x and y in [0, 2, 4, ...]
+        // -> other x/y are considered 'odd' and skipped:
+        // for pad=1, skip input rows/cols 2,4,6,... (x%2==0, y%2==0)
+        // for pad=0, skip input rows/cols 1,3,5,... (x%2==1, y%2==1)
+        bool is_odd_input_row =
+            ((pad == 1) & (y % 2 == 0)) | ((pad == 0) & (y % 2 == 1));
+        bool is_odd_input_col =
+            ((pad == 1) & (x % 2 == 0)) | ((pad == 0) & (x % 2 == 1));
 
-        // Pixel Characterstics:
+        // Debug: Print Pixel Characterstics
         DBG("input pixel (%d,%d) (  ", (int)y, (int)x);
         if (is_preload_row) DBG("is_preload_row  ");
         if (do_pad_top_row) DBG("do_pad_top_row  ");
@@ -329,25 +347,34 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
         if (is_valid_input_coord) DBG("is_valid_input_coord  ");
         DBG(")\n");
 
-        ////////////////////////
-        /// Loop Level 4: Input Channels Ci
-
+        // ===================================
+        // = Loop Level 4: Input Channels Ci =
+        // ===================================
         DBG("            start processing input channels...\n");
 
-        for (ci = 0; ci < layer.channels_in; ci++) {
+      L_CH_IN:
+        for (ci = 0; ci < ch_in; ci++) {
+          // Input Channels: Not ready for tiling!
+          // Would need different schedule and summation.
+
           DBG("L%-2dR%-3dC%-3dI%-2d ", (int)current_layer, (int)y, (int)x,
               (int)ci);
 
-          // Load Next Pixel/Channel from RAM:
-          float fetched_pixel = -99;
+          // ====================================
+          // = Load Next Pixel/Channel from RAM =
+          // ====================================
+          data_t pixel_from_ram = -9999;
+
           if (is_valid_input_coord) {
             // copy from DRAM into IMAGE Cache
-            memcpy(&fetched_pixel, DRAM_INPUT_PTR + img_dram_offset,
-                   sizeof(float));
-            IMAGE_CACHE[img_cache_addr] = fetched_pixel;
+            // img_dram_offset is set to beginning of row in Y-Loop Body
+            // img_dram_offset is incremented by 1 here for every pixel/channel
+            memcpy(&pixel_from_ram, DRAM_INPUT_PTR + img_dram_offset,
+                   sizeof(data_t));
+            IMAGE_CACHE[img_cache_addr] = pixel_from_ram;
             DBG("load next input channel from RAM: @%lu->@%lu (%010.3f)\n",
                 ((long)(DRAM_INPUT_PTR + img_dram_offset) - (long)DRAM_DATA),
-                (long)&IMAGE_CACHE[img_cache_addr], fetched_pixel);
+                (long)&IMAGE_CACHE[img_cache_addr], pixel_from_ram);
             // advance image cache and dram access addresses
             img_cache_addr++;
             img_dram_offset++;
@@ -357,267 +384,284 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
                 (int)x);
           }
 
-          // For preload rows, only store into IMAGE Cache, skip rest.
+          // For preload rows, skip to next channel (only store to Image Cache)
           if (is_preload_row) {
             DBG("               skip to next channel (preload row)\n");
             continue;
           }
 
-          // Shift Into Active Area SREG:
-          channel_t current_aa = ci % TILING_CI;
-          if (layer.kernel == 1) {
-            DBG(
-                "               shift single pixel into ActiveArea SREG %d "
-                "(%010.4f)",
-                (int)current_aa, fetched_pixel);
+          // ===============================
+          // = Shift Into Active Area SREG =
+          // ===============================
+          channel_t curr_aa = ci % TILING_CI;
+          if (kernel == 1) {
+            // For 1x1 Convolution: Load current Pixel into all AA SREG Slots
+            DBG("               load single pixel into AA SREG #%d (%010.4f)",
+                (int)curr_aa, pixel_from_ram);
+          L_AA_SREG_loadAll_H:
             for (int j = 0; j < 3; j++) {
 #pragma HLS unroll
+            L_AA_SREG_loadAll_W:
               for (int i = 0; i < 3; i++) {
 #pragma HLS unroll
-                ACTIVE_AREA[current_aa][j * 3 + i] = fetched_pixel;
+                ACTIVE_AREA[curr_aa][j * 3 + i] = pixel_from_ram;
               }
             }
           } else {
-            DBG("               shift column into ActiveArea SREG %d ( ",
-                (int)current_aa);
-            for (int j = 0; j < 3; j++) {
+            // For 3x3 Convolution: Shift in column of 3 pixels from image cache
+            DBG("               shift column into AA SREG #%d (", (int)curr_aa);
+          L_AA_SREG_shift_H:
+            for (int j = 0; j < 3; j++) {  // j: rows
 #pragma HLS unroll
-              for (int i = 0; i < 2; i++) {
+            L_AA_SREG_shift_W:
+              for (int i = 0; i < 2; i++) {  // i: columns
 #pragma HLS unroll
-                // shift contents left
-                ACTIVE_AREA[current_aa][j * 3 + i] =
-                    ACTIVE_AREA[current_aa][j * 3 + i + 1];
+                // Shift SREG contents left (col 0<-1 and 1<-2)
+                ACTIVE_AREA[curr_aa][j * 3 + i] =
+                    ACTIVE_AREA[curr_aa][j * 3 + i + 1];
               }
-              {  // shift in new pixels right
-                bool do_pad_pixel =
-                    (((j == 0) & do_pad_top_row) | ((j == 2) & do_pad_bot_row) |
-                     do_pad_curr_col);
-                if (do_pad_pixel) {  // top/bottom row or left/right col
-                                     // padding:
+              {  // Shift in new pixels from right (col 2<-new_col)
+                bool do_pad_pixel = do_pad_curr_col |
+                                    ((j == 0) & do_pad_top_row) |
+                                    ((j == 2) & do_pad_bot_row);
+                if (do_pad_pixel) {
+                  // PADDING PIXEL
+                  ACTIVE_AREA[curr_aa][j * 3 + 2] = 0;
                   DBG("0 ");
-                  ACTIVE_AREA[current_aa][j * 3 + 2] = 0;
-                } else {  // normal pixel - load from BRAM
-                  cacheline_t request_line = (y + j - 2) % 4;
-                  float cached = IMAGE_CACHE[request_line * pixels_per_row +
-                                             layer.channels_in * x + ci];
-                  ACTIVE_AREA[current_aa][j * 3 + 2] = cached;
-                  DBG("%010.3f ", cached);
+                } else {
+                  // NORMAL PIXEL - load from Cache
+                  cacheline_t request_line = (y - 2 + j) % NUM_IMG_CACHE_LINES;
+                  imgcacheaddr_t pixel_addr =
+                      request_line * pixels_per_row + x * ch_in + ci;
+                  ACTIVE_AREA[curr_aa][j * 3 + 2] = IMAGE_CACHE[pixel_addr];
+                  DBG("%010.3f ", IMAGE_CACHE[pixel_addr]);
                 }
               }
             }
           }
-          DBG(")\n");
+          DBG(")^T\n");
 
-          // Print Contents of current AA SREG
-          /*DBG("AA[%d] Contents: \n[", (int)current_aa);
-          for (int j = 0; j < 3; j++) {
-            for (int i = 0; i < 3; i++) {
-              DBG(" %9.3f ", ACTIVE_AREA[current_aa][j * 3 + i]);
+          // ========================
+          // = Debug: Print AA SREG =
+          // ========================
+          /*DBG("AA[%d] Contents: \n[", (int)curr_aa);
+          for (int j = 0; j < 3; j++) {   // j: rows
+            for (int i = 0; i < 3; i++) { // i: columns             
+              DBG(" %9.3f ", ACTIVE_AREA[curr_aa][j * 3 + i]);
             }
-            if (j < 2) DBG("]\n[");
+            if (j < 2) DBG("]\n["); // after each line, except last
           }
-          DBG("]\n");*/
+          DBG("]\n");*/  // after last line
 
-          // Skip following Calculations if not necessary (odd row/col, )
+          // =======================================
+          // = Conditional Skipping of Convolution =
+          // =======================================
 
-          if (is_preload_col) {  // not enough cols buffered; next ci
+          // Skip Convolution for preload cols (not enough cols buffered)
+          if (is_preload_col) {
             DBG("               skip to next channel (preload column)\n");
             continue;
           }
-
-          if (is_odd_input_row &&
-              (layer.stride == 2)) {  // odd row left out in stride2
-            DBG("               skip to next channel (odd row, S=2)\n");
+          // Skip Convolution for stride-2:
+          if ((stride == 2) & (is_odd_input_row | is_odd_input_col)) {
+            DBG("               skip to next channel (odd %s, S=2)\n",
+                is_odd_input_row ? "row" : "col");
             continue;
           }
 
-          if (is_odd_input_col &&
-              (layer.stride == 2)) {  // odd col left out in stride2
-            DBG("               skip to next channel (odd col, S=2)\n");
-            continue;
-          }
+          // ====================================
+          // = Loop Level 5: Output Channels Co =
+          // ====================================
 
-          ////////////////////////
-          /// Loop Level 5: Output Channels Co
+          DBG("               start processing Output Channels.\n");
+          DBG("               %dx MACC (%dx%d), channels:\n", (int)ch_out,
+              (int)kernel, (int)kernel);
 
-          // DBG("               start processing Output Channels..\n");
-
-          for (co = 0; co < layer.channels_out;
-               co += num_ch_out_per_convolution) {
-            // Print Infos about Channels being convolved:
-            if (co == 0)
-              // General, Type of Operation
-              DBG("               %dx MACC (%dx%d), channels: ",
-                  (int)layer.channels_out, (int)layer.kernel,
-                  (int)layer.kernel);
+        // For Conv1x1: Each "Convolution Kernel" calculates 9 output channels
+        // For Conv3x3: Each "Convolution Kernel" calculates 1 output channel
+        // -> co points to start of such a "block of output channels"
+        L_CH_OUT:
+          for (co = 0; co < ch_out; co += num_ch_out_per_convolution) {
+            // Debug: What Channel(s) (in > out) MACC'ed in this co-iteration
             for (int l = 0; l < num_ch_out_per_convolution; l++) {
-              if ((co + l) < layer.channels_out) {
-                // Notification for each valid In->Out Conv Operation
-                DBG("(%d>%d) ", (int)ci, (int)co + l);
-              }
+              if ((co + l) < ch_out) DBG("(%d>%d) ", (int)ci, (int)co + l);
             }
-            if (layer.kernel == 1) DBG("[packed] ");
+            // Debug: 9 1x1 MACCs can be packed into 1 conv kernel:
+            if (kernel == 1) DBG("[packed] ");  // = 9 packed 1x1 convs
 
-            ////////////////////////
-            /// 2D CONVOLUTION (for this output channel)
-            //
-            float conv2D = 0;
-            float products[9];
+            // ==================
+            // = 2D CONVOLUTION =
+            // ==================
+            data_t accumulator = 0;  // accumulator
+            data_t products[9];      // products from individual multiplications
             kernel_t i, j;
-            ////////////////////////
-            /// Loop Level 6: Kernel H (j)
-            /// Loop Level 7: Kernel W (i)
 
-            DBG("\n");
+          // ==============================
+          // = Loop Level 6: Kernel H (j) =
+          // = Loop Level 7: Kernel W (i) =
+          // ==============================
+          // DBG("\n");
+          L_CONV_H:
             for (j = 0; j < 3; j++) {
 #pragma HLS unroll
+            L_CONV_W:
               for (i = 0; i < 3; i++) {
 #pragma HLS unroll
-
                 // Filter Arrangement in Memory:
                 // ch_in -> ch_out -> kernel_h -> kernel_w
                 // for 3x3: ch_in -> 1x ch_out -> 3x3
                 // for 1x1: ch_in -> 9x ch_out -> 1x1
-                weightaddr_t filter_addr =
-                    ci * (layer.channels_out * weights_per_filter) +
-                    co * weights_per_filter + j * 3 + i;
-                float multiply_result = FILTER_CACHE[filter_addr] *
-                                        ACTIVE_AREA[current_aa][j * 3 + i];
-                conv2D += multiply_result;
-                products[j * 3 + i] = multiply_result;
+                weightaddr_t filter_addr = ci * ch_out * weights_per_filter +
+                                           co * weights_per_filter + j * 3 + i;
+                // multiply:
+                data_t multiplication_result = WEIGHTS_CACHE[filter_addr] *
+                                               ACTIVE_AREA[curr_aa][j * 3 + i];
+                products[j * 3 + i] = multiplication_result;
+                // accumulate:
+                accumulator += multiplication_result;
 
-                DBG("filter addr = %4d, ", (int)filter_addr);
+                /*DBG("filter addr = %4d, ", (int)filter_addr);
                 DBG("filter: %9.3f, pixel: %9.3f %s, ",
-                    FILTER_CACHE[filter_addr],
-                    ACTIVE_AREA[current_aa][j * 3 + i],
-                    (co + (j * 3 + i) < layer.channels_out | layer.kernel == 3)
+                    WEIGHTS_CACHE[filter_addr], ACTIVE_AREA[curr_aa][j * 3 + i],
+                    ((co + (j * 3 + i) < ch_out) | (kernel == 3))
                         ? "(valid)"
                         : "(invalid!)");
-                DBG("product[%d]: %9.3f, ", (int)(j * 3 + i),
+                DBG("products[%d]: %9.3f, ", (int)(j * 3 + i),
                     products[j * 3 + i]);
-                DBG("conv2D = %9.3f\n", conv2D);
+                DBG("accumulator = %9.3f\n", accumulator);*/
               }
             }
-            DBG("\n");
+            // DBG("\n");
 
-            // Write to Output Cache
-
-            // For 3x3 Kernel: Write MACC Result to Output Cache
-            if (layer.kernel == 3) {
+            // =========================
+            // = Write to Output Cache =
+            // =========================
+            // Conv3x3: Write MACC Result to Output Cache
+            if (kernel == 3) {
               if (ci == 0) {
-                // Initialize (Reset) Output Cache for First Input Channel.
-                OUTPUT_CACHE[co] = conv2D;
+                // First Input Channel: Initialize (Reset) Output Cache
+                OUTPUT_CACHE[co] = accumulator;
                 DBG("i");
               } else {
-                // Update (Accumulate) Output Cache for all other Input Channels
-                OUTPUT_CACHE[co] += conv2D;
+                // All other Input Channels: Update (Accumulate) Output Cache
+                OUTPUT_CACHE[co] += accumulator;
                 DBG("u");
               }
               DBG(" -> Cache(%6.2f) ", OUTPUT_CACHE[co]);
-            }
-            // For 1x1 Kernel: Write 9 Multiply-Results to Cache
-            else {
+            } else {
+            // Conv1x1: Write 9 Multiply-Results to Cache
+            L_WRITE_OUTCACHE_1x1:
               for (int l = 0; l < 9; l++) {
-                if ((co + l) < layer.channels_out) {
+                if ((co + l) < ch_out) {
+                  // valid output channel
                   if (ci == 0) {
-                    // Initialize Output Cache for First Input Channel.
+                    // First Input Channel: Initialize Output Cache
                     OUTPUT_CACHE[co + l] = products[l];
                     DBG("i");
                   } else {
-                    // Update Output Cache for all other Input Channels
+                    // All other Input Channels: Update (Accumulate) Cache
                     OUTPUT_CACHE[co + l] += products[l];
                     DBG("u");
                   }
-                }  // end if (co+l)<channels_out
+                }  // end if (valid output channel)
               }    // end for l
-            }      // end else if kernel == 1
+            }      // end if (kernel == 3 or 1)
 
-          }  // end for co
+          }  // End of Output Channel Loop (co)
 
-          // one input channel done.
+          // One Input Channel finished.
           DBG("\n");
 
-        }  // end for ci
+        }  // End of Input Channel Loop (ci)
 
-        // one pixel done. (all input channels, all output channels)
+        // One Pixel (all Input Channels, all Output Channels) finished.
 
-        // If pixel didn't produce output, no preprocessing is needed
+        // ===========================================
+        // = Conditional Skipping of Post-Processing =
+        // ===========================================
+
+        // If pixel didn't produce output -> no postprocessing necessary
         if (is_preload_row | is_preload_col) {
           DBG("            no output for pixel -> no postprocessing\n");
           continue;
         }
 
-        // If we're at stride 2 and row or col is odd, skip to next pixel
-        // ( -> came here from "continue" in input-channel loop)
-        if ((is_odd_input_row | is_odd_input_col) && (layer.stride == 2)) {
+        // For stride 2 and odd row/col, skip to next pixel
+        // (-> came here from "continue" in input-channel-loop)
+        if ((stride == 2) & (is_odd_input_row | is_odd_input_col)) {
           DBG("            skip to next pixel (odd row or col, S=2)\n");
           continue;
         }
 
-        /////////////////
-        /// Post-Processing of Pixel
-
+        // ===================
+        // = Post-Processing =
+        // ===================
         DBG("            postprocess:\n");
-
         DBG("L%-2dR%-3dC%-3d ", (int)current_layer, (int)y, (int)x);
         DBG("saving as output pixel(%d,%d)\n", (int)y_out, (int)x_out);
 
-        assert(x_out < width_out && 0 <= x_out);
-        assert(y_out < height_out && 0 <= y_out);
+        assert((0 <= x_out) & (x_out < width_out));
+        assert((0 <= y_out) & (y_out < height_out));
 
-        int ch_out = layer.channels_out;
+        // ==================================
+        // = Write-Back Address Calculation =
+        // ==================================
         if (layer.is_expand_layer) {
           // Expand Layers are interleaved -> leave space for 2x channels_out
           DBG("            (expand layer, doubling virtual output channels)\n");
-          ch_out = 2 * layer.channels_out;
+          DRAM_OUTPUT_PIXEL_PTR =
+              (DRAM_OUTPUT_PTR + 2 * ch_out * (width_out * y_out + x_out));
+        } else {
+          DRAM_OUTPUT_PIXEL_PTR =
+              (DRAM_OUTPUT_PTR + ch_out * (width_out * y_out + x_out));
         }
-        DRAM_OUTPUT_PIXEL_PTR =
-            (DRAM_OUTPUT_PTR + y_out * width_out * ch_out + x_out * ch_out);
 
+      // =====================================
+      // = Output Channel Loop (Postprocess) =
+      // =====================================
+      L_postprocess_ch_out:
         for (co = 0; co < layer.channels_out; co++) {
-          float value = OUTPUT_CACHE[co];
+          data_t value = OUTPUT_CACHE[co];
 
-          //////////
-          /// BIAS
+          // ========
+          // = BIAS =
+          // ========
           DBG("            ch%2d Bias: %7.3f->", (int)co, value);
           weightaddr_t bias_addr =
               num_weights_in_layer - layer.channels_out + co;
           // DBG("bias addr: %d", (int)bias_addr);
-          float bias = FILTER_CACHE[bias_addr];
+          data_t bias = WEIGHTS_CACHE[bias_addr];
           value += bias;
           DBG("%7.3f, ", value);
 
-          //////////
-          /// ReLU
+          // ========
+          // = ReLU =
+          // ========
           DBG("ReLU: %7.3f->", value);
           if (value < 0) value = 0;
           DBG("%7.3f, ", value);
 
-          //////////
-          /// Pooling
-          if (layer.pool != POOL_NONE) {
-            if (layer.pool == POOL_GLOBAL) {
-              // Global Pooling: Does not really average, but just accumulate.
-              // Execute Division by CH_OUT on CPU!
-              if (x_out == 0 & y_out == 0) {
-                GLOBAL_POOL_CACHE[co] = value;
-                DBG("(GPOOL i): %9.3f, ", GLOBAL_POOL_CACHE[co]);
-              } else {
-                GLOBAL_POOL_CACHE[co] += value;
-                DBG("(GPOOL u): %9.3f, ", GLOBAL_POOL_CACHE[co]);
-              }
+          // ==================
+          // = GLOBAL POOLING =
+          // ==================
+          if (layer.pool == POOL_GLOBAL) {
+            // Global Pooling: Does not really average, but just accumulate.
+            // Execute Division by CH_OUT on CPU!
+            if (x_out == 0 & y_out == 0) {
+              GLOBAL_POOL_CACHE[co] = value;
+              DBG("(GPOOL i): %9.3f, ", GLOBAL_POOL_CACHE[co]);
             } else {
-              printf("(pool%d), ", (int)layer.kernel);
-              assert(false && "Pooling Not Implemented!");
+              GLOBAL_POOL_CACHE[co] += value;
+              DBG("(GPOOL u): %9.3f, ", GLOBAL_POOL_CACHE[co]);
             }
-          }
+          }  // other types of pooling: not supported. use all-conv networks!
 
-          //////////
-          /// Writeback
+          // =============================
+          // = Write-Back Output Channel =
+          // =============================
           DBG("WB(@%lu): %6.2f\n",
-              ((long)(DRAM_OUTPUT_PIXEL_PTR + co) - (long)DRAM_DATA),
-              *(&value));
-          memcpy((void *)(DRAM_OUTPUT_PIXEL_PTR + co), &value, sizeof(value));
+              ((long)(DRAM_OUTPUT_PIXEL_PTR + co) - (long)DRAM_DATA), value);
+          memcpy(DRAM_OUTPUT_PIXEL_PTR + co, &value, sizeof(value));
         }  // end for co
 
         DBG("\n");
@@ -626,44 +670,54 @@ void fpga_top(volatile int num_layers, volatile bus_t *DRAM,
     }    // end for y
   }      // end for layer
 
-  printf("\n\nFPGA: ALL LAYERS DONE!\n");
-  printf("Results: [");
-  for (co = 0; co < layer.channels_out;
-       co++) {  // last layer still in registers
-    printf("%9.3f ", GLOBAL_POOL_CACHE[co]);
+  // =============================
+  // = Write-Back GLOBAL POOLING =
+  // =============================
+  // ch_out still holds value from last layer
+  memcpy(DRAM_DATA, GLOBAL_POOL_CACHE, ch_out * sizeof(data_t));
+  printf("\nFPGA: Copy results back to DRAM (%d Bytes)\n",
+         (int)(ch_out * sizeof(data_t)));
+
+  // ================
+  // = Final Report =
+  // ================
+  printf("SqueezeNet on FPGA: DONE!\n\n");
+  DBG("Results: [");
+  for (co = 0; co < ch_out; co++) {
+    DBG("%7.3f ", GLOBAL_POOL_CACHE[co]);
   }
-  printf("]\n");
+  DBG("]\n");
 
-  // Copy Results to beginning of "Data" DRAM
-  memcpy(DRAM_DATA, GLOBAL_POOL_CACHE, layer.channels_out * sizeof(float));
-  printf("FPGA: Copy results back to DRAM (%d Bytes)\n\n",
-         (int)(layer.channels_out * sizeof(float)));
-
+  // =============================
+  // = Debug: Write DRAM to File =
+  // =============================
   // For Debugging: Write DATA Region and WEIGHT Region to files...
 
   int nbytes;
-  FILE *filehandle;
-
-  printf("CONV1 Result Memory Offset: %lu\n",
-         BRAM_LAYER_CONFIG[0].mem_addr_output * sizeof(float));
+  FILE *outfile;
 
   // Write whole DATA DRAM Region to File:
-  filehandle = fopen("DRAM_DATA.bin", "wb");
+  outfile = fopen("DRAM_DATA.bin", "wb");
   // DRAM_OUTPUT_PIXEL_PTR still points to last written entry...
-  nbytes = (unsigned long)(DRAM_OUTPUT_PIXEL_PTR + layer.channels_out) -
-           (unsigned long)DRAM_DATA;
-  fwrite(DRAM_DATA, sizeof(char), nbytes, filehandle);
-  fclose(filehandle);
+  nbytes = (long)(DRAM_OUTPUT_PIXEL_PTR + layer.channels_out) - (long)DRAM_DATA;
+  fwrite(DRAM_DATA, sizeof(char), nbytes, outfile);
+  fclose(outfile);
 
   // Write whole WEIGHT DRAM Region to File:
-  filehandle = fopen("DRAM_WEIGHTS.bin", "wb");
-  // Calculate Start / End Address of Weight space:
-  int num_weights_in_layer =
-      layer.kernel * layer.kernel * layer.channels_in * layer.channels_out +
-      layer.channels_out;
-  float *DRAM_WEIGHTS_END_PTR =
-      ((float *)DRAM_WEIGHTS + layer.mem_addr_weights + num_weights_in_layer);
-  nbytes = (unsigned long)DRAM_WEIGHTS_END_PTR - (unsigned long)DRAM_WEIGHTS;
-  fwrite(DRAM_WEIGHTS, sizeof(char), nbytes, filehandle);
-  fclose(filehandle);
+  outfile = fopen("DRAM_WEIGHTS.bin", "wb");
+  // Calculate End Address of Weight memory:
+  int n_weights_last_layer = kernel * kernel * ch_in * ch_out + ch_out;
+  data_t *DRAM_WEIGHTS_END_PTR =
+      ((data_t *)DRAM_WEIGHTS + layer.mem_addr_weights + n_weights_last_layer);
+  nbytes = (long)DRAM_WEIGHTS_END_PTR - (long)DRAM_WEIGHTS;
+  fwrite(DRAM_WEIGHTS, sizeof(char), nbytes, outfile);
+  fclose(outfile);
+
+  // ===============================
+  // = Debug: Memory Addr. Offsets =
+  // ===============================
+  for (int layer_id = 0; layer_id < num_layers; layer_id++) {
+    DBG("%s Result Memory Offset: %lu\n", BRAM_LAYER_CONFIG[layer_id].name,
+        BRAM_LAYER_CONFIG[layer_id].mem_addr_output * sizeof(data_t));
+  }
 }

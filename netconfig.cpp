@@ -1,15 +1,33 @@
+#include "network.hpp"
 #include "netconfig.hpp"
+
+// ==============================
+// = Add Layer to given Network =
+// ==============================
 
 void addLayer(network_t *net, layer_t layer, bool is_expand_layer,
               bool update_memory_address, pooltype_t pool_type) {
-  // Keep Track of Memory Locations for Activations + Weights
+  // Assumes that Network has been initialized with enough memory (not checked!)
+  // Uses static variables -> can only use for 1 network definitions!
+  // If update_memory_address==true, advances layer's memory addresses for input
+  //    and output memories and weights
+  // If is_expand_layer==true, reserves double amount of output memory to allow
+  //    implicit out-channel concatenation (use for expand1x1 layer)
+  // If is_expand_layer==true and update_memory_address==false, uses same input
+  //    memory address as in last layer, and only slightly shifted output
+  //    address (use for expand3x3 layer)
+  // Use POOL_TYPE = POOL_GLOBAL in last layer to sum over spatial dimension
+  //    (output becomes 1x1xCH_OUT)
+
+  // Keep Track of Memory Locations for Activations + Weights (-> static)
   static int next_activation_mem = 0;
   static int last_activation_mem = 0;
   static int next_weights_mem = 0;
-  // align to 10KB memory borders
-  float mem_border = 1024 * 1024 / sizeof(float);
 
-  // Data Size Calculations:
+  // Align to memory borders
+  int mem_border = MEMORY_ALIGNMENT / sizeof(float);
+
+  // Data Size Calculations
   int input_data_pixels = layer.width * layer.height * layer.channels_in;
   int width_out =
       floor((layer.width + 2 * layer.pad - layer.kernel) / layer.stride) + 1;
@@ -21,7 +39,7 @@ void addLayer(network_t *net, layer_t layer, bool is_expand_layer,
       layer.channels_out;
 
   // Normal Layers:
-  // - increase "next_activation_mem" to next available 1MB memory border
+  // - increase "next_activation_mem" to next available (1MB) memory border
   // Data + First Expand1x1 Layers:
   // - do not increase memory addresses
   if (update_memory_address) {  // "normal layer"
@@ -46,12 +64,14 @@ void addLayer(network_t *net, layer_t layer, bool is_expand_layer,
     // next_weights_mem = ceil(next_weights_mem / mem_border) * mem_border;
   }
 
-  // For 2nd "expand 3x3" layer:
+  // For 2nd "expand" (expand3x3) layer:
   // - will read from same input location
   // - will write to slightly offset memory location (interleave out channels)
   if (is_expand_layer && !update_memory_address) {
     layer.mem_addr_output = next_activation_mem + layer.channels_out;
   }
+
+  // Write Options into Layer Config
   layer.is_expand_layer = is_expand_layer;
   layer.pool = pool_type;
 
@@ -60,6 +80,11 @@ void addLayer(network_t *net, layer_t layer, bool is_expand_layer,
   net->num_layers++;
   net->total_pixel_mem = next_activation_mem + output_data_pixels;
 };
+
+// =================================
+// = Load Weights from Binary File =
+// =================================
+// prepare with convert_caffemodel.py
 
 void loadWeightsFromFile(network_t *net, const char *filename) {
   FILE *filehandle = fopen(filename, "r");
@@ -83,15 +108,11 @@ void loadWeightsFromFile(network_t *net, const char *filename) {
   fclose(filehandle);
 }
 
-// char *stradd(char *name, char *suffix) {
-//   char *fullname = (char *)malloc(NET_NAME_MAX_LEN * sizeof(char));
-//   strncpy(fullname, name, NET_NAME_MAX_LEN);
-//   int l = strlen(fullname);
-//   strncpy(&fullname[l], suffix, NET_NAME_MAX_LEN - l);
-//   return fullname;
-// }
-
+// =========================================
+// = Print Overview Table of given Network =
+// =========================================
 // Print List of all Layers + Attributes + Memory Locations
+
 void print_layers(network_t *net) {
   for (int i = 0; i < net->num_layers; i++) {
     layer_t *layer = &net->layers[i];
@@ -114,13 +135,13 @@ void print_layers(network_t *net) {
            (layer->mem_addr_weights + weights_size) * sizeof(float) / 1024);
     if (layer->is_expand_layer)
       printf(" (exact out %8lu B)", layer->mem_addr_output * sizeof(float));
-    if (layer->pool == POOL_2x2S2) {
-      printf(" POOL 2x2/S2");
-    } else if (layer->pool == POOL_3x3S2) {
-      printf(" POOL 3x3/S2");
-    } else if (layer->pool == POOL_GLOBAL) {
+    if (layer->pool == POOL_GLOBAL) {
       printf(" POOL GLOBAL");
-    }
+    } /*else if (layer->pool == POOL_3x3S2) {
+      printf(" POOL 3x3/S2");
+    } else if (layer->pool == POOL_2x2S2) {
+      printf(" POOL 2x2/S2");
+    }*/
     printf("\n");
   }
 }

@@ -414,6 +414,25 @@ def classify(caffemodel, deploy_file, image_file,
         f.write(floatstruct)
         
         
+    # Fish out softmax blob...
+    d = np.array(net.blobs['softmax'].data)[0,:,:,:]
+    print "shape of softmax results: ", d.shape
+    W = d.shape[2]
+    H = d.shape[1]
+    CH = d.shape[0]
+        
+    pixels = []
+    for y in range(H):
+        for x in range(W):
+            for c in range(CH):
+                pixels.append(d[c,x,y]);
+               
+    # Write Pixels to binary file
+    print("Write to softmax File...")
+    floatstruct = struct.pack('f'*len(pixels), *pixels)
+    with open("softmax.bin", "wb") as f:
+        f.write(floatstruct)
+        
         
         
     print "output shape: ", scores.shape
