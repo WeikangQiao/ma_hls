@@ -1,7 +1,7 @@
-NETWORK = networks/AllPoolToSq3x3S2
+NETWORK = ./networks/AllPoolToSq3x3S2
 
-CC=g++
-CFLAGS=-I$(NETWORK) -I. -I./vivado_include -Wall -g -Wno-unknown-pragmas -Wno-unused-label -O3
+CC = g++
+CFLAGS = -I. -I./vivado_include -I$(NETWORK) -Wall -g -Wno-unknown-pragmas -Wno-unused-label -O3
 # Change in Makefile or Network should trigger recompile, too:
 DEPS = *.h Makefile $(NETWORK)/*
 CPP_FILES = $(wildcard *.cpp) $(wildcard $(NETWORK)/*.cpp)

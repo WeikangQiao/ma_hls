@@ -24,9 +24,9 @@ void addLayer(network_t *net, layer_t layer, bool is_expand_layer,
   static int last_activation_mem = 0;
   static int next_weights_mem = 0;
 
-  // Align to memory borders
-  int mem_border = MEMORY_ALIGNMENT / sizeof(float);
-
+  // Align to memory borders (float needed because of ceil() operation below)
+  float mem_border = MEMORY_ALIGNMENT / sizeof(data_t);
+  
   // Data Size Calculations
   int input_data_pixels = layer.width * layer.height * layer.channels_in;
   int width_out =
@@ -43,6 +43,7 @@ void addLayer(network_t *net, layer_t layer, bool is_expand_layer,
   // Data + First Expand1x1 Layers:
   // - do not increase memory addresses
   if (update_memory_address) {  // "normal layer"
+    
     last_activation_mem = next_activation_mem;
     // next free memory address = behind input of current layer
     // input data size:
@@ -50,6 +51,11 @@ void addLayer(network_t *net, layer_t layer, bool is_expand_layer,
     // align to 1MB memory borders
     next_activation_mem = ceil(next_activation_mem / mem_border) * mem_border;
   }
+  
+  /*printf("layer %s, update_memory_address = %d, last_activation_mem = %d, "
+         "next_activation_mem = %d", layer.name, update_memory_address,
+         last_activation_mem, next_activation_mem);*/
+  
 
   // Write Memory Addresses into Layer Config
   layer.mem_addr_input = last_activation_mem;
@@ -58,9 +64,8 @@ void addLayer(network_t *net, layer_t layer, bool is_expand_layer,
 
   // Update next available Weights Memory Address for Layers which have Weights:
   if (layer.type == LAYER_CONV) {
-    layer.mem_addr_weights = next_weights_mem;
     next_weights_mem += num_weights;
-    // do not align --> calculation of necessary memory beforehand too difficult
+    // do not align (weights can be read completely sequentially)
     // next_weights_mem = ceil(next_weights_mem / mem_border) * mem_border;
   }
 
@@ -112,7 +117,14 @@ void loadWeightsFromFile(network_t *net, const char *filename) {
 // = Print Overview Table of given Network =
 // =========================================
 // Print List of all Layers + Attributes + Memory Locations
-
+#define use_KB 1
+#if use_KB
+#define unit "k"
+#define divi 1024
+#else
+#define unit ""
+#define divi 1
+#endif
 void print_layers(network_t *net) {
   for (int i = 0; i < net->num_layers; i++) {
     layer_t *layer = &net->layers[i];
@@ -121,18 +133,18 @@ void print_layers(network_t *net) {
                            layer->channels_out +
                        layer->channels_out;
 
-    printf("%6s: IN %3d x %3d x %3d @mem(%6lu-%6lukB), OUT @mem(%6lukB)",
+    printf("%6s: IN %3d x %3d x %3d @mem(%6lu-%6lu"unit"B), OUT @mem(%6lu"unit"B)",
            layer->name, (int)layer->height, (int)layer->width,
            (int)layer->channels_in,
-           layer->mem_addr_input * sizeof(float) / 1024,
-           (layer->mem_addr_input + memory_needed) * sizeof(float) / 1024,
-           layer->mem_addr_output * sizeof(float) / 1024);
+           layer->mem_addr_input * sizeof(float) / divi,
+           (layer->mem_addr_input + memory_needed) * sizeof(float) / divi,
+           layer->mem_addr_output * sizeof(float) / divi);
 
     printf(", CONV (%dx%d)/%d%s", (int)layer->kernel, (int)layer->kernel,
            (int)layer->stride, layer->pad ? "p" : " ");
-    printf(", PARAM @mem(%4lu-%4lukB)",
-           layer->mem_addr_weights * sizeof(float) / 1024,
-           (layer->mem_addr_weights + weights_size) * sizeof(float) / 1024);
+    printf(", PARAM @mem(%4lu-%4lu"unit"B)",
+           layer->mem_addr_weights * sizeof(float) / divi,
+           (layer->mem_addr_weights + weights_size) * sizeof(float) / divi);
     if (layer->is_expand_layer)
       printf(" (exact out %8lu B)", layer->mem_addr_output * sizeof(float));
     if (layer->pool == POOL_GLOBAL) {

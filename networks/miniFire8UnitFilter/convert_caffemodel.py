@@ -169,34 +169,6 @@ for id,layer_name in enumerate(layer_names):
             
             # Count Number of Weights:
             weights_count += ch_in*ch_out*kernel*kernel + ch_out
-            
-            # Set Parameters of All Filter Bank to UNIT FILTER
-            # and ZERO BIAS
-            p = np.array(params[0].data)
-            print "shape of parameters: ", p.shape
-            co = p.shape[0]
-            ci = p.shape[1]
-            kx = p.shape[2]
-            ky = p.shape[3]
-            for i in range(ci):
-                 for o in range(co):
-                     if i == 0:
-                         if kernel == 3:
-                             p[o,i] = np.array([[0,0,0],[0,1,0],[0,0,0]])
-                         elif kernel == 1:
-                             p[o,i] = 1
-                         else:
-                             print("unknown kernel size?")
-                     else:
-                         if kernel == 3:
-                             p[o,i] = np.zeros((3,3))
-                         elif kernel == 1:
-                             p[o,i] = 0
-                         else:
-                             print("unknown kernel size?")
-                         
-            params[0].data[...] = p
-            params[1].data[...] = np.zeros(params[1].data.shape)
                          
             # Append Weights and Biases to List
             append_filters(weights, params[0])

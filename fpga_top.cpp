@@ -182,8 +182,8 @@ L_LAYERS:
 
     // Debug: Print Infos about Image Cache Addresses
     DBG("    setup image cache: fetch from %lu (preload %dkB, total %dkB)\n",
-        (long)DRAM_INPUT_PTR, pixels_per_row * sizeof(data_t) / 1024,
-        pixels_per_row * height_in * sizeof(data_t) / 1024);
+        (long)DRAM_INPUT_PTR, (int)(pixels_per_row * sizeof(data_t) / 1024),
+        (int)(pixels_per_row * height_in * sizeof(data_t) / 1024));
 
     // =======================
     // = Weights Cache Setup =
@@ -193,7 +193,7 @@ L_LAYERS:
     int num_weights_in_layer = ch_in * ch_out * kernel * kernel + ch_out;
     int weights_size_bytes = num_weights_in_layer * sizeof(data_t);
     DBG("    setup weights cache: will fetch from %lu (%dkB)\n",
-        (unsigned long)DRAM_WEIGHTS_PTR, weights_size_bytes / 1024);
+        (long)DRAM_WEIGHTS_PTR, weights_size_bytes / 1024);
     memcpy(WEIGHTS_CACHE, DRAM_WEIGHTS_PTR, weights_size_bytes);
 
     // ======================
@@ -271,7 +271,7 @@ L_LAYERS:
       img_cache_addr = pixels_per_row * curr_img_cache_line;
       img_dram_offset = pixels_per_row * y;
 
-      DBG("setup image cache: from DRAM offset %d, to cache addr %d (line%d)\n",
+      DBG("setup image cache: from DRAM offset %d to cache addr %d (line%d)\n",
           (int)img_dram_offset, (int)img_cache_addr, (int)curr_img_cache_line);
 
       // ===========================
