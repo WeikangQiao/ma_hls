@@ -104,8 +104,8 @@ struct __attribute__((packed)) layer_t {
         is_expand_layer(is_expand),
         pool(pool) {
     for (int i = 0; i < NET_NAME_MAX_LEN; i++) {
-    	name[i] = n[i];
-    	if (n[i] == 0) break;
+      name[i] = n[i];
+      if (n[i] == 0) break;
     }
     name[NET_NAME_MAX_LEN] = 0;
   };

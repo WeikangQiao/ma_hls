@@ -101,7 +101,7 @@ def load_image(path, height, width, mode='RGB'):
         resize_height += 1
     elif width_ratio < height_ratio and (width - resize_width) % 2 == 1:
         resize_width += 1
-    image = scipy.misc.imresize(image, (resize_height, resize_width), interp='bilinear')
+    image = scipy.misc.imresize(image, (resize_height, resize_width), interp='bicubic')
     if width_ratio > height_ratio:
         start = int(round((resize_width-width)/2.0))
         image = image[:,start:start+width]
@@ -242,10 +242,10 @@ def classify(caffemodel, deploy_file, image_file,
     # Fish out some blobs...
     indata = np.array(net.blobs['data'].data)[0,:,:,:]
     print "shape of indata: ", indata.shape
-    W = indata.shape[2]
-    H = indata.shape[1]
     CH = indata.shape[0]
-        
+    W = indata.shape[1]
+    H = indata.shape[2]
+
     pixels = []
     for y in range(H):
         for x in range(W):
@@ -253,14 +253,13 @@ def classify(caffemodel, deploy_file, image_file,
                 pixel = indata[c,x,y]
                 if pixel is None: pixel = 99999
                 pixels.append(pixel);
-                
-                
+
     # Write Pixels to binary file
     print("Write to indata File...")
     floatstruct = struct.pack('f'*len(pixels), *pixels)
     with open("indata.bin", "wb") as f:
         f.write(floatstruct)
-        
+
     # Fish out some Parameters...
     conv1param = np.array(net.params['conv1'][0].data)[:,:,:,:]
     print "shape of conv1param: ", conv1param.shape

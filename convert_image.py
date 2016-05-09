@@ -107,177 +107,78 @@ def load_image(path):
     else:
         print("Image Load Error: Image mode '%s' not supported" % image.mode)
         exit(-1)
-
-def resize_image(image, height, width,
-        channels=None,
-        resize_mode=None,
-        ):
+        
+def load_and_process(path, height, width, mode='RGB'):
     """
-    Resizes an image and returns it as a np.array
+    Load an image from disk or web
+
+    Returns fully pre-processed image (channels x width x height)
 
     Arguments:
-    image -- a PIL.Image or numpy.ndarray
-    height -- height of new image
-    width -- width of new image
+    path -- path to an image on disk or on web
+    width -- resize dimension
+    height -- resize dimension
 
-    Keyword Arguments:
-    channels -- channels of new image (stays unchanged if not specified)
-    resize_mode -- can be crop, squash, fill or half_crop
+    Keyword arguments:
+    mode -- the PIL mode that the image should be converted to
+        (RGB for color or L for grayscale)
     """
-    if resize_mode is None:
-        resize_mode = 'squash'
-    if resize_mode not in ['crop', 'squash', 'fill', 'half_crop']:
-        print('resize_mode "%s" not supported' % resize_mode)
-        exit(-1)
-    if channels not in [None, 1, 3]:
-        print('unsupported number of channels: %s' % channels)
-        exit(-1)
-
-    if isinstance(image, PIL.Image.Image):
-        # Convert image mode (channels)
-        if channels is None:
-            image_mode = image.mode
-            if image_mode == 'L':
-                channels = 1
-            elif image_mode == 'RGB':
-                channels = 3
-            else:
-                print('unknown image mode "%s"' % image_mode)
-                exit(-1)
-        elif channels == 1:
-            # 8-bit pixels, black and white
-            image_mode = 'L'
-        elif channels == 3:
-            # 3x8-bit pixels, true color
-            image_mode = 'RGB'
-        if image.mode != image_mode:
-            image = image.convert(image_mode)
-        image = np.array(image)
-    elif isinstance(image, np.ndarray):
-        if image.dtype != np.uint8:
-            image = image.astype(np.uint8)
-        if image.ndim == 3 and image.shape[2] == 1:
-            image = image.reshape(image.shape[:2])
-        if channels is None:
-            if image.ndim == 2:
-                channels = 1
-            elif image.ndim == 3 and image.shape[2] == 3:
-                channels = 3
-            else:
-                print('invalid image shape: %s' % (image.shape,))
-                exit(-1)
-                
-        elif channels == 1:
-            if image.ndim != 2:
-                if image.ndim == 3 and image.shape[2] == 3:
-                    # color to grayscale
-                    image = np.dot(image, [0.299, 0.587, 0.114]).astype(np.uint8)
-                else:
-                    print('invalid image shape: %s' % (image.shape,))
-                    exit(-1)
-                    
-        elif channels == 3:
-            if image.ndim == 2:
-                # grayscale to color
-                image = np.repeat(image,3).reshape(image.shape + (3,))
-            elif image.shape[2] != 3:
-                print('invalid image shape: %s' % (image.shape,))
-                exit(-1)
-                
+    image = load_image(path)
+    image = image.convert(mode)
+    PILimage = image
+    image = np.array(image)
+    
+    # half-crop
+    height_ratio = float(image.shape[0])/height
+    width_ratio = float(image.shape[1])/width
+    new_ratio = (width_ratio + height_ratio) / 2.0
+    resize_width = int(round(image.shape[1] / new_ratio))
+    resize_height = int(round(image.shape[0] / new_ratio))
+    if width_ratio > height_ratio and (height - resize_height) % 2 == 1:
+        resize_height += 1
+    elif width_ratio < height_ratio and (width - resize_width) % 2 == 1:
+        resize_width += 1
+    #image = scipy.misc.imresize(image,(resize_height, resize_width),interp='bicubic')
+    image = np.array(PILimage.resize((resize_width, resize_height), PIL.Image.LANCZOS))
+    print 'resized shape: ', image.shape
+    
+    if width_ratio > height_ratio:
+        start = int(round((resize_width-width)/2.0))
+        image = image[:,start:start+width]
     else:
-        print('resize_image() expected a PIL.Image.Image or a numpy.ndarray')
-        exit(-1)
+        start = int(round((resize_height-height)/2.0))
+        image = image[start:start+height,:]
+    
+    # half-fill: fill ends of dimension that is too short with random noise
+    if width_ratio > height_ratio:
+        padding = (height - resize_height)/2
+        noise_size = (padding, width, 3)
+        noise = np.random.randint(0, 255, noise_size).astype('uint8')
+        image = np.concatenate((noise, image, noise), axis=0)
+    else:
+        padding = (width - resize_width)/2
+        noise_size = (height, padding, 3)
+        noise = np.random.randint(0, 255, noise_size).astype('uint8')
+        image = np.concatenate((noise, image, noise), axis=1)
+    
+    processed = np.zeros((3, width, height), np.float32)
+    
+    # Subtract Mean, Swap Channels RGB -> BGR, Transpose (W,H,CH) to (CH,W,H)
+    #mean_rgb = [104,117,123]
+    processed[0,:,:] = (image[:,:,2]-104.0)
+    processed[1,:,:] = (image[:,:,1]-117.0)
+    processed[2,:,:] = (image[:,:,0]-123.0)
         
+    return processed
 
-    # No need to resize
-    if image.shape[0] == height and image.shape[1] == width:
-        return image
 
-    ### Resize
-    interp = 'bicubic'
-
-    width_ratio = float(image.shape[1]) / width
-    height_ratio = float(image.shape[0]) / height
-    if resize_mode == 'squash' or width_ratio == height_ratio:
-        return scipy.misc.imresize(image, (height, width), interp=interp)
-    elif resize_mode == 'crop':
-        # resize to smallest of ratios (relatively larger image), keeping aspect ratio
-        if width_ratio > height_ratio:
-            resize_height = height
-            resize_width = int(round(image.shape[1] / height_ratio))
-        else:
-            resize_width = width
-            resize_height = int(round(image.shape[0] / width_ratio))
-        image = scipy.misc.imresize(image, (resize_height, resize_width), interp=interp)
-
-        # chop off ends of dimension that is still too long
-        if width_ratio > height_ratio:
-            start = int(round((resize_width-width)/2.0))
-            return image[:,start:start+width]
-        else:
-            start = int(round((resize_height-height)/2.0))
-            return image[start:start+height,:]
-    else:
-        if resize_mode == 'fill':
-            # resize to biggest of ratios (relatively smaller image), keeping aspect ratio
-            if width_ratio > height_ratio:
-                resize_width = width
-                resize_height = int(round(image.shape[0] / width_ratio))
-                if (height - resize_height) % 2 == 1:
-                    resize_height += 1
-            else:
-                resize_height = height
-                resize_width = int(round(image.shape[1] / height_ratio))
-                if (width - resize_width) % 2 == 1:
-                    resize_width += 1
-            image = scipy.misc.imresize(image, (resize_height, resize_width), interp=interp)
-        elif resize_mode == 'half_crop':
-            # resize to average ratio keeping aspect ratio
-            new_ratio = (width_ratio + height_ratio) / 2.0
-            resize_width = int(round(image.shape[1] / new_ratio))
-            resize_height = int(round(image.shape[0] / new_ratio))
-            if width_ratio > height_ratio and (height - resize_height) % 2 == 1:
-                resize_height += 1
-            elif width_ratio < height_ratio and (width - resize_width) % 2 == 1:
-                resize_width += 1
-            image = scipy.misc.imresize(image, (resize_height, resize_width), interp=interp)
-            # chop off ends of dimension that is still too long
-            if width_ratio > height_ratio:
-                start = int(round((resize_width-width)/2.0))
-                image = image[:,start:start+width]
-            else:
-                start = int(round((resize_height-height)/2.0))
-                image = image[start:start+height,:]
-        else:
-            raise Exception('unrecognized resize_mode "%s"' % resize_mode)
-
-        # fill ends of dimension that is too short with random noise
-        if width_ratio > height_ratio:
-            padding = (height - resize_height)/2
-            noise_size = (padding, width)
-            if channels > 1:
-                noise_size += (channels,)
-            noise = np.random.randint(0, 255, noise_size).astype('uint8')
-            image = np.concatenate((noise, image, noise), axis=0)
-        else:
-            padding = (width - resize_width)/2
-            noise_size = (height, padding)
-            if channels > 1:
-                noise_size += (channels,)
-            noise = np.random.randint(0, 255, noise_size).astype('uint8')
-            image = np.concatenate((noise, image, noise), axis=1)
-
-        return image              
-              
-              
-                    
 ######
 ###### Open Image, Extract all Pixels
 ######
 
 start_time = time.clock()
 
-# Load Image from File or Web:
+# Get Original Image to compare Dimensions:
 original_image = load_image(infile)
 
 # Get Dimensions:
@@ -286,11 +187,12 @@ if resize > 0:
 else:
     width, height = original_image.size
     
-# Convert Image to NP array, resizing if necessary
-resized_image = resize_image(original_image, width, height, resize_mode='half_crop')
-
+# Load and Process Image (mean subtract, channel swap, dimension transpose)
+# returns image as nparray (channels x height x width)
+processed_image = load_and_process(infile, height, width)
+    
 # Check Dimensions
-channels = resized_image.shape[2]
+channels = processed_image.shape[0]
 print "New Dimensions: {}x{}, {} Channels\n".format(width, height, channels)
 if channels != 3:
     print "Expected 3 Channels! Aborting.\n"
@@ -302,26 +204,22 @@ if not (width in [1024, 512, 256, 128, 64, 32, 16, 8, 4, 2]):
     print "Expected Image with Side length 2^n! Aborting.\n"
     exit(-1)
     
-# Test Pixels at Start of Image
-# resized_image[0,0,...] = [0,0,0]
-# resized_image[0,1,...] = [255,255,255]
-# resized_image[0,2,...] = [255,0,0]
-# resized_image[0,3,...] = [0,255,0]
-# resized_image[0,4,...] = [0,0,255]
-
-# Reorder RGB -> BGR
-resized_image[:,:,:] = resized_image[:,:,(2,1,0)]
-
-PIL.Image.fromarray(resized_image).show()
+# Display
+# have to convert back to WxHxch format...
+pilimage = np.zeros((height,width,3),np.uint8)
+pilimage[:,:,0] = processed_image[0,:,:]/1.2 + 127
+pilimage[:,:,1] = processed_image[1,:,:]/1.2 + 127
+pilimage[:,:,2] = processed_image[2,:,:]/1.2 + 127
+PIL.Image.fromarray(pilimage).show()
 
 # Reorder and write to linear Pixels list:
-# NP image array shape: (height, width, channels)
+# NP image array shape: (channels, width, height)
 print("Reorder Channels...")
 pixels = []
 for y in range(height):
     for x in range(width):
         for c in range(channels):  
-            pixels.append(float(resized_image[y][x][c]))
+            pixels.append(float(processed_image[c][x][y]))
 
 # Write weights to binary file
 print("Write to Output File...")

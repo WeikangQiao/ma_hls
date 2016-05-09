@@ -105,7 +105,8 @@ for id,layer_name in enumerate(layer_names):
         name = name.replace("expand1x1", "e1")
         name = name.replace("expand3x3", "e3")
         name = name.replace("squeeze1x1","s1")
-        name = name.replace("1.","")    # conv1.1/1.2/1.3->conv1/2/3
+        name = name.replace("1.","")         # conv1.1/1.2/1.3->conv1/2/3
+        name = name.replace("conv","cnv")    # conv10 -> cnv10
         
         # Extract Layer Attributes
         width_in  = width_out
