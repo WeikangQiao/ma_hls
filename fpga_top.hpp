@@ -13,9 +13,12 @@
 #ifndef _FPGA_TOP_H_
 #define _FPGA_TOP_H_
 
-#include "network.hpp"
-#include <ap_utils.h>
 #include <cassert>
+#include <cmath>
+#include <ap_int.h>
+#include <ap_utils.h>
+
+#include "network.hpp"
 #include "netconfig.hpp"
 
 // ==========================
