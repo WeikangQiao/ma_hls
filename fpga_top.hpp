@@ -14,6 +14,8 @@
 #define _FPGA_TOP_H_
 
 #include "network.hpp"
+#include <ap_utils.h>
+#include <cassert>
 #include "netconfig.hpp"
 
 // ==========================
@@ -53,7 +55,7 @@ void fpga_top(volatile bus_t *DRAM, unsigned int num_layers,
 // = Debugging Output (Helper Fn) =
 // ================================
 // debug mode, -DEBUG
-#ifdef EBUG
+#if defined(EBUG) && !defined(__SYNTHESIS__)
 #define FNAME() \
   fprintf(stdout, "\n%s (%s, line %d)\n", __func__, __FILE__, __LINE__)
 #define DBG(...)                  \

@@ -103,7 +103,11 @@ struct __attribute__((packed)) layer_t {
         mem_addr_weights(mem_w),
         is_expand_layer(is_expand),
         pool(pool) {
-    strncpy(name, n, NET_NAME_MAX_LEN + 1);
+    for (int i = 0; i < NET_NAME_MAX_LEN; i++) {
+    	name[i] = n[i];
+    	if (n[i] == 0) break;
+    }
+    name[NET_NAME_MAX_LEN] = 0;
   };
   // empty constructor, needed for empty array of layer_t in FPGA BRAM
   layer_t()

@@ -82,19 +82,21 @@ void fpga_top(volatile bus_t *DRAM, unsigned int num_layers,
 #pragma HLS RESOURCE core = AXI4LiteS variable = return metadata = \
     "-bus_bundle LITE"
 #pragma HLS INTERFACE ap_none register port = num_layers
-#pragma HLS RESOURCE core = AXI4LiteS variable = weights_offset metadata = \
+#pragma HLS RESOURCE core = AXI4LiteS variable = byte_weights_offset metadata = \
     "-bus_bundle LITE"
-#pragma HLS INTERFACE ap_none register port = weights_offset
-#pragma HLS RESOURCE core = AXI4LiteS variable = weights_offset metadata = \
+#pragma HLS INTERFACE ap_none register port = byte_weights_offset
+#pragma HLS RESOURCE core = AXI4LiteS variable = byte_weights_offset metadata = \
     "-bus_bundle LITE"
-#pragma HLS INTERFACE ap_none register port = layerconfig_offset
-#pragma HLS RESOURCE core = AXI4LiteS variable = layerconfig_offset metadata = \
+#pragma HLS INTERFACE ap_none register port = byte_layerconfig_offset
+#pragma HLS RESOURCE core = AXI4LiteS variable = byte_layerconfig_offset metadata = \
     "-bus_bundle LITE"
-#pragma HLS INTERFACE ap_none register port = input_offset
-#pragma HLS RESOURCE core = AXI4LiteS variable = input_offset metadata = \
+#pragma HLS INTERFACE ap_none register port = byte_input_offset
+#pragma HLS RESOURCE core = AXI4LiteS variable = byte_input_offset metadata = \
     "-bus_bundle LITE"
 
-  printf("\nStart FPGA Module:\n====================\n\n");
+#ifndef __SYNTHESIS__
+	printf("\nStart FPGA Module:\n====================\n\n");
+#endif
 
   // ======================================
   // = Initial Setup (DRAM, Layer Config) =
@@ -108,7 +110,9 @@ void fpga_top(volatile bus_t *DRAM, unsigned int num_layers,
   // Fetch Layer Configuration
   int cfg_bytes = num_layers * sizeof(layer_t);
   memcpy(BRAM_LAYER_CONFIG, DRAM_LAYERCONFIG, cfg_bytes);
+#ifndef __SYNTHESIS__
   printf("FPGA: Fetch Layer Config from DRAM to BRAM: (%d Bytes)\n", cfg_bytes);
+#endif
 
 // ========================
 // = Loop Level 1: Layers =
@@ -120,11 +124,13 @@ L_LAYERS:
     // ============================
     layer = BRAM_LAYER_CONFIG[current_layer];
 
+#ifndef __SYNTHESIS__
     // Print Layer Infos
     printf("L%-2d", (int)current_layer);
     printf("%-6s ", layer.name);
     printf("convolution layer, K=%d, S=%d, P=%d\n", (int)layer.kernel,
            (int)layer.stride, (int)layer.pad);
+#endif
 
     // Debug Output: Memory Addresses
     DBG("    mem_addr_input: %d, mem_addr_output: %d, mem_addr_weights: %d\n",
@@ -675,6 +681,7 @@ L_LAYERS:
   // =============================
   // ch_out still holds value from last layer
   memcpy(DRAM_DATA, GLOBAL_POOL_CACHE, ch_out * sizeof(data_t));
+#ifndef __SYNTHESIS__
   printf("\nFPGA: Copy results back to DRAM (%d Bytes)\n",
          (int)(ch_out * sizeof(data_t)));
 
@@ -720,4 +727,6 @@ L_LAYERS:
     DBG("%s Result Memory Offset: %lu\n", BRAM_LAYER_CONFIG[layer_id].name,
         BRAM_LAYER_CONFIG[layer_id].mem_addr_output * sizeof(data_t));
   }
+#endif
+
 }
