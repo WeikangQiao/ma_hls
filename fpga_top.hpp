@@ -16,7 +16,7 @@
 #include <cassert>
 #include <cmath>
 #include <ap_int.h>
-#include <ap_utils.h>
+//#include <ap_utils.h>
 
 #include "network.hpp"
 #include "netconfig.hpp"

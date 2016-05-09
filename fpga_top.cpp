@@ -11,10 +11,6 @@
 //------------------------------------------------------------------------------
 
 #include "fpga_top.hpp"
-#include "math.h"
-#include "ap_int.h"
-
-#include "network.hpp"
 
 // FPGA BRAM Memory
 layer_t BRAM_LAYER_CONFIG[MAX_NUM_LAYERS];
