@@ -21,7 +21,7 @@ data_t OUTPUT_CACHE[MAX_NUM_CHOUT];
 data_t GLOBAL_POOL_CACHE[MAX_NUM_CHOUT];
 
 // Shared DRAM Memory Pointers
-layer_t *DRAM_LAYERCONFIG;
+bus_t *DRAM_LAYERCONFIG;
 data_t *DRAM_WEIGHTS;
 data_t *DRAM_DATA;
 data_t *DRAM_WEIGHTS_PTR;       // current layer weights (mem region start)
@@ -78,20 +78,20 @@ void fpga_top(volatile bus_t *DRAM, unsigned int num_layers,
 #pragma HLS RESOURCE core = AXI4LiteS variable = return metadata = \
     "-bus_bundle LITE"
 #pragma HLS INTERFACE ap_none register port = num_layers
-#pragma HLS RESOURCE core = AXI4LiteS variable = byte_weights_offset metadata = \
-    "-bus_bundle LITE"
+#pragma HLS RESOURCE core = AXI4LiteS variable = \
+    byte_weights_offset metadata = "-bus_bundle LITE"
 #pragma HLS INTERFACE ap_none register port = byte_weights_offset
-#pragma HLS RESOURCE core = AXI4LiteS variable = byte_weights_offset metadata = \
-    "-bus_bundle LITE"
+#pragma HLS RESOURCE core = AXI4LiteS variable = \
+    byte_weights_offset metadata = "-bus_bundle LITE"
 #pragma HLS INTERFACE ap_none register port = byte_layerconfig_offset
-#pragma HLS RESOURCE core = AXI4LiteS variable = byte_layerconfig_offset metadata = \
-    "-bus_bundle LITE"
+#pragma HLS RESOURCE core = AXI4LiteS variable = \
+    byte_layerconfig_offset metadata = "-bus_bundle LITE"
 #pragma HLS INTERFACE ap_none register port = byte_input_offset
 #pragma HLS RESOURCE core = AXI4LiteS variable = byte_input_offset metadata = \
     "-bus_bundle LITE"
 
 #ifndef __SYNTHESIS__
-	printf("\nStart FPGA Module:\n====================\n\n");
+  printf("\nStart FPGA Module:\n====================\n\n");
 #endif
 
   // ======================================
@@ -99,15 +99,26 @@ void fpga_top(volatile bus_t *DRAM, unsigned int num_layers,
   // ======================================
 
   // Setup Pointers into shared DRAM
-  DRAM_LAYERCONFIG = (layer_t *)((char *)DRAM + byte_layerconfig_offset);
-  DRAM_WEIGHTS = (data_t *)((char *)DRAM + byte_weights_offset);
-  DRAM_DATA = (data_t *)((char *)DRAM + byte_input_offset);
+  DRAM_LAYERCONFIG = (bus_t *)(DRAM + byte_layerconfig_offset / sizeof(bus_t));
+  DRAM_WEIGHTS = (data_t *)(DRAM + byte_weights_offset / sizeof(bus_t));
+  DRAM_DATA = (data_t *)(DRAM + byte_input_offset / sizeof(bus_t));
 
   // Fetch Layer Configuration
-  int cfg_bytes = num_layers * sizeof(layer_t);
-  memcpy(BRAM_LAYER_CONFIG, DRAM_LAYERCONFIG, cfg_bytes);
+  bus_t rx_transaction[transactions_per_layer];
+  int bytes_transferred = 0;
+  for (int l = 0; l < num_layers; l++) {
+    for (int t = 0; t < transactions_per_layer; t++) {
+      memcpy(&rx_transaction[t],
+             (DRAM_LAYERCONFIG + l * transactions_per_layer + t),
+             sizeof(bus_t));
+      bytes_transferred += sizeof(bus_t);
+    }
+    BRAM_LAYER_CONFIG[l] = *((layer_t*)rx_transaction);
+  }
+// memcpy(BRAM_LAYER_CONFIG, DRAM_LAYERCONFIG, cfg_bytes);
 #ifndef __SYNTHESIS__
-  printf("FPGA: Fetch Layer Config from DRAM to BRAM: (%d Bytes)\n", cfg_bytes);
+  printf("FPGA: Fetch Layer Config from DRAM to BRAM: (%d Bytes)\n",
+         bytes_transferred);
 #endif
 
 // ========================
@@ -724,5 +735,4 @@ L_LAYERS:
         BRAM_LAYER_CONFIG[layer_id].mem_addr_output * sizeof(data_t));
   }
 #endif
-
 }

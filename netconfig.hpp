@@ -52,7 +52,7 @@ typedef ap_uint<NBITS(MAX_NUM_LAYERS - 1)> layerid_t;  // counts to num_layers-1
 typedef float data_t;
 typedef int memaddr_t;
 
-typedef enum {
+typedef enum __attribute__((packed)) {
   LAYER_CONV,
   LAYER_NONE  // not really used...
   // LAYER_RELU,  // implicit after LAYER_CONV
@@ -86,6 +86,7 @@ struct __attribute__((packed)) layer_t {
   memaddr_t mem_addr_weights;
   bool is_expand_layer;
   pooltype_t pool;
+  /*ap_uint<1> dummy;*/
   // full constructor, used to define network in network.cpp
   layer_t(const char *n, layertype_t t, int w, int h, int ci, int co, int k,
           int p, int s, int mem_i = 0, int mem_o = 0, int mem_w = 0,
@@ -102,7 +103,8 @@ struct __attribute__((packed)) layer_t {
         mem_addr_output(mem_o),
         mem_addr_weights(mem_w),
         is_expand_layer(is_expand),
-        pool(pool) {
+        pool(pool)/*,
+        dummy(0)*/ {
     for (int i = 0; i < NET_NAME_MAX_LEN; i++) {
       name[i] = n[i];
       if (n[i] == 0) break;
@@ -124,8 +126,16 @@ struct __attribute__((packed)) layer_t {
         mem_addr_output(0),
         mem_addr_weights(0),
         is_expand_layer(0),
-        pool(POOL_NONE){};
+        pool(POOL_NONE)/*,
+        dummy(0)*/ {};
 };
+
+// =========================
+// = CPU <-> FPGA BUS TYPE =
+// =========================
+typedef int bus_t;
+const int transactions_per_layer = sizeof(layer_t)/sizeof(bus_t);
+
 
 // ====================
 // = Struct NETWORK_T =

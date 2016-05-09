@@ -34,8 +34,6 @@ const int NUM_IMG_CACHE_LINES = (3);
 // ====================
 // = Type Definitions =
 // ====================
-typedef int bus_t;
-
 typedef ap_uint<2> cacheline_t;  // cache height = 4 lines
 typedef ap_uint<NBITS(MAX_INPUT_PER_LAYER)> imgdramoffset_t;
 typedef ap_uint<NBITS(MAX_IMAGE_CACHE_SIZE)> imgcacheaddr_t;

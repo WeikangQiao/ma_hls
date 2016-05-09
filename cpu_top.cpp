@@ -271,6 +271,12 @@ int main() {
   // Generate + Load Network Config from network.hpp/network.cpp
   network_t *net_CPU;
   net_CPU = get_network_config();
+  
+  // Assert that layer_t fits into a multiple of bus transactions:
+  printf("size of layer_t: %d, size of bus_t: %d", (int)sizeof(layer_t),
+      (int)sizeof(bus_t));
+  assert((sizeof(layer_t) % sizeof(bus_t) == 0) &&
+         "layert_t is not multiple of bus size. adjust size of layer_t.dummy!");
 
   // ==========================
   // = Setup FPGA Accelerator =

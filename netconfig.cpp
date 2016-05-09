@@ -26,7 +26,7 @@ void addLayer(network_t *net, layer_t layer, bool is_expand_layer,
 
   // Align to memory borders (float needed because of ceil() operation below)
   float mem_border = MEMORY_ALIGNMENT / sizeof(data_t);
-  
+
   // Data Size Calculations
   int input_data_pixels = layer.width * layer.height * layer.channels_in;
   int width_out =
@@ -43,7 +43,7 @@ void addLayer(network_t *net, layer_t layer, bool is_expand_layer,
   // Data + First Expand1x1 Layers:
   // - do not increase memory addresses
   if (update_memory_address) {  // "normal layer"
-    
+
     last_activation_mem = next_activation_mem;
     // next free memory address = behind input of current layer
     // input data size:
@@ -51,11 +51,10 @@ void addLayer(network_t *net, layer_t layer, bool is_expand_layer,
     // align to 1MB memory borders
     next_activation_mem = ceil(next_activation_mem / mem_border) * mem_border;
   }
-  
+
   /*printf("layer %s, update_memory_address = %d, last_activation_mem = %d, "
          "next_activation_mem = %d", layer.name, update_memory_address,
          last_activation_mem, next_activation_mem);*/
-  
 
   // Write Memory Addresses into Layer Config
   layer.mem_addr_input = last_activation_mem;
@@ -133,7 +132,8 @@ void print_layers(network_t *net) {
                            layer->channels_out +
                        layer->channels_out;
 
-    printf("%6s: IN %3d x %3d x %3d @mem(%6lu-%6lu"unit"B), OUT @mem(%6lu"unit"B)",
+    printf("%6s: IN %3d x %3d x %3d @mem(%6lu-%6lu" unit
+           "B), OUT @mem(%6lu" unit "B)",
            layer->name, (int)layer->height, (int)layer->width,
            (int)layer->channels_in,
            layer->mem_addr_input * sizeof(float) / divi,
@@ -142,7 +142,7 @@ void print_layers(network_t *net) {
 
     printf(", CONV (%dx%d)/%d%s", (int)layer->kernel, (int)layer->kernel,
            (int)layer->stride, layer->pad ? "p" : " ");
-    printf(", PARAM @mem(%4lu-%4lu"unit"B)",
+    printf(", PARAM @mem(%4lu-%4lu" unit "B)",
            layer->mem_addr_weights * sizeof(float) / divi,
            (layer->mem_addr_weights + weights_size) * sizeof(float) / divi);
     if (layer->is_expand_layer)
