@@ -101,7 +101,7 @@ def load_image(path, height, width, mode='RGB'):
         resize_height += 1
     elif width_ratio < height_ratio and (width - resize_width) % 2 == 1:
         resize_width += 1
-    image = scipy.misc.imresize(image, (resize_height, resize_width), interp='bilinear')
+    image = scipy.misc.imresize(image, (resize_height, resize_width), interp='bicubic')
     if width_ratio > height_ratio:
         start = int(round((resize_width-width)/2.0))
         image = image[:,start:start+width]
@@ -210,14 +210,14 @@ def classify(caffemodel, deploy_file, image_file,
     
     # Structured Input as Image
     
-    # W = image.shape[2]
-    # H = image.shape[1]
-    # CH = image.shape[0]
-    # for y in range(H):
-    #  for x in range(W):
-    #      for c in range(CH):
-    #          image[c,x,y] = 1;
-                
+    #W = image.shape[2]
+    #H = image.shape[1]
+    #CH = image.shape[0]
+    #for y in range(H):
+    # for x in range(W):
+    #  for c in range(CH):
+    #      image[c,x,y] = 1000.0*y+x+c/1000.0#1;
+    #            
     # Fixed Parameters for first Filter Bank
     
     # conv1param = np.array(net.params['conv1'][0].data)[:,:,:,:]
@@ -229,13 +229,12 @@ def classify(caffemodel, deploy_file, image_file,
     # pixels = []
     # for i in range(ci):
     #  for o in range(co):
-    #      if i == 0:
-    #          conv1param[o,i] = np.array([[1,0,0],[0,1,0],[0,1,0]])
-    #      else:
-    #          conv1param[o,i] = np.array([[1,0,0],[0,1,0],[0,1,0]])
-    # net.params['conv1'][0].data[...] = conv1param
-    # net.params['conv1'][1].data[...] = np.zeros(net.params['conv1'][1].shape)
-    
+    #   if i == 0:
+    #       conv1param[o,i] = np.array([[0,0,0],[0,1,0],[0,0,0]])
+    #   else:
+    #       conv1param[o,i] = np.zeros((3,3)) #conv1param[o,i] = np.array([[1,0,0],[0,1,0],[0,1,0]])
+    #net.params['conv1'][0].data[...] = conv1param
+    #net.params['conv1'][1].data[...] = np.zeros(net.params['conv1'][1].shape)
     
     # Classify the image
     scores = forward_pass(image, net, batch_size=1)
@@ -243,10 +242,10 @@ def classify(caffemodel, deploy_file, image_file,
     # Fish out some blobs...
     indata = np.array(net.blobs['data'].data)[0,:,:,:]
     print "shape of indata: ", indata.shape
-    W = indata.shape[2]
-    H = indata.shape[1]
     CH = indata.shape[0]
-        
+    W = indata.shape[1]
+    H = indata.shape[2]
+
     pixels = []
     for y in range(H):
         for x in range(W):
@@ -254,14 +253,13 @@ def classify(caffemodel, deploy_file, image_file,
                 pixel = indata[c,x,y]
                 if pixel is None: pixel = 99999
                 pixels.append(pixel);
-                
-                
+
     # Write Pixels to binary file
-    print("Write to Output File...")
+    print("Write to indata File...")
     floatstruct = struct.pack('f'*len(pixels), *pixels)
     with open("indata.bin", "wb") as f:
         f.write(floatstruct)
-        
+
     # Fish out some Parameters...
     conv1param = np.array(net.params['conv1'][0].data)[:,:,:,:]
     print "shape of conv1param: ", conv1param.shape
@@ -282,7 +280,7 @@ def classify(caffemodel, deploy_file, image_file,
                  pixels.append(conv1param[o,i,x,y]);
                 
     # Write Pixels to binary file
-    print("Write to Output File...")
+    print("Write to conv1param File...")
     floatstruct = struct.pack('f'*len(pixels), *pixels)
     with open("conv1param.bin", "wb") as f:
         f.write(floatstruct)
@@ -301,10 +299,142 @@ def classify(caffemodel, deploy_file, image_file,
                 pixels.append(conv1res[c,x,y]);
                
     # Write Pixels to binary file
-    print("Write to Output File...")
+    print("Write to conv1res File...")
     floatstruct = struct.pack('f'*len(pixels), *pixels)
     with open("conv1res.bin", "wb") as f:
         f.write(floatstruct)
+        
+        
+        
+        
+    # Fish out fire2/sq1x1 blobs...
+    d = np.array(net.blobs['fire/squeeze1x1'].data)[0,:,:,:]
+    print "shape of fire/squeeze1x1 results: ", d.shape
+    W = d.shape[2]
+    H = d.shape[1]
+    CH = d.shape[0]
+        
+    pixels = []
+    for y in range(H):
+        for x in range(W):
+            for c in range(CH):
+                pixels.append(d[c,x,y]);
+               
+    # Write Pixels to binary file
+    print("Write to fs1 File...")
+    floatstruct = struct.pack('f'*len(pixels), *pixels)
+    with open("fs1.bin", "wb") as f:
+        f.write(floatstruct)
+        
+        
+        
+        
+    # Fish out fire2/ex1x1 blobs...
+    d = np.array(net.blobs['fire/expand1x1'].data)[0,:,:,:]
+    print "shape of fire/expand1x1 results: ", d.shape
+    W = d.shape[2]
+    H = d.shape[1]
+    CH = d.shape[0]
+        
+    pixels = []
+    for y in range(H):
+        for x in range(W):
+            for c in range(CH):
+                pixels.append(d[c,x,y]);
+               
+    # Write Pixels to binary file
+    print("Write to fex1x1 File...")
+    floatstruct = struct.pack('f'*len(pixels), *pixels)
+    with open("fex1x1.bin", "wb") as f:
+        f.write(floatstruct)
+    
+    
+    
+        
+    # Fish out fire/ex3x3 blobs...
+    d = np.array(net.blobs['fire/expand3x3'].data)[0,:,:,:]
+    print "shape of fire/expand3x3 results: ", d.shape
+    W = d.shape[2]
+    H = d.shape[1]
+    CH = d.shape[0]
+        
+    pixels = []
+    for y in range(H):
+        for x in range(W):
+            for c in range(CH):
+                pixels.append(d[c,x,y]);
+               
+    # Write Pixels to binary file
+    print("Write to fex3x3 File...")
+    floatstruct = struct.pack('f'*len(pixels), *pixels)
+    with open("fex3x3.bin", "wb") as f:
+        f.write(floatstruct)
+    
+    
+        
+    # Fish out fire2/concat blobs...
+    d = np.array(net.blobs['fire/concat'].data)[0,:,:,:]
+    print "shape of fire/concat results: ", d.shape
+    W = d.shape[2]
+    H = d.shape[1]
+    CH = d.shape[0]
+        
+    pixels = []
+    for y in range(H):
+        for x in range(W):
+            for c in range(CH):
+                pixels.append(d[c,x,y]);
+               
+    # Write Pixels to binary file
+    print("Write to fconcat File...")
+    floatstruct = struct.pack('f'*len(pixels), *pixels)
+    with open("fconcat.bin", "wb") as f:
+        f.write(floatstruct)
+    
+    
+        
+    # Fish out conv10 blobs...
+    d = np.array(net.blobs['conv10'].data)[0,:,:,:]
+    print "shape of conv10 results: ", d.shape
+    W = d.shape[2]
+    H = d.shape[1]
+    CH = d.shape[0]
+        
+    pixels = []
+    for y in range(H):
+        for x in range(W):
+            for c in range(CH):
+                pixels.append(d[c,x,y]);
+               
+    # Write Pixels to binary file
+    print("Write to conv10 File...")
+    floatstruct = struct.pack('f'*len(pixels), *pixels)
+    with open("conv10.bin", "wb") as f:
+        f.write(floatstruct)
+        
+        
+    # Fish out softmax blob...
+    d = np.array(net.blobs['prob'].data)[0,:,:,:]
+    print "shape of softmax results: ", d.shape
+    W = d.shape[2]
+    H = d.shape[1]
+    CH = d.shape[0]
+        
+    pixels = []
+    for y in range(H):
+        for x in range(W):
+            for c in range(CH):
+                pixels.append(d[c,x,y]);
+               
+    # Write Pixels to binary file
+    print("Write to softmax File...")
+    floatstruct = struct.pack('f'*len(pixels), *pixels)
+    with open("softmax.bin", "wb") as f:
+        f.write(floatstruct)
+        
+        
+        
+    print "output shape: ", scores.shape
         
     net.save("modified.caffemodel")
         

@@ -29,67 +29,92 @@
 		<link>
 			<name>source</name>
 			<type>2</type>
-			<location>/home/sem14h17/MA/ma_hls/vivado_project/.apc/.src</location>
+			<location>/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/vivado_project/.apc/.src</location>
 		</link>
 		<link>
 			<name>testbench</name>
 			<type>2</type>
-			<location>/home/sem14h17/MA/ma_hls/vivado_project/.apc/.tb</location>
-		</link>
-		<link>
-			<name>.reference/netconfig.hpp</name>
-			<type>1</type>
-			<location>/home/sem14h17/MA/ma_hls/netconfig.hpp</location>
+			<location>/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/vivado_project/.apc/.tb</location>
 		</link>
 		<link>
 			<name>solution1/constraints</name>
 			<type>2</type>
-			<location>/home/sem14h17/MA/ma_hls/vivado_project/solution1/.tcls</location>
+			<location>/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/vivado_project/solution1/.tcls</location>
 		</link>
 		<link>
 			<name>source/fpga_top.cpp</name>
 			<type>1</type>
-			<location>/home/sem14h17/MA/ma_hls/fpga_top.cpp</location>
+			<location>/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/fpga_top.cpp</location>
 		</link>
 		<link>
 			<name>source/fpga_top.hpp</name>
 			<type>1</type>
-			<location>/home/sem14h17/MA/ma_hls/fpga_top.hpp</location>
+			<location>/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/fpga_top.hpp</location>
+		</link>
+		<link>
+			<name>source/netconfig.hpp</name>
+			<type>1</type>
+			<location>/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/netconfig.hpp</location>
 		</link>
 		<link>
 			<name>source/network.hpp</name>
 			<type>1</type>
-			<location>/home/sem14h17/MA/ma_hls/networks/AllPoolToSq3x3S2/network.hpp</location>
+			<location>/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/network.hpp</location>
 		</link>
 		<link>
 			<name>testbench/cpu_top.cpp</name>
 			<type>1</type>
-			<location>/home/sem14h17/MA/ma_hls/cpu_top.cpp</location>
+			<location>/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/cpu_top.cpp</location>
+		</link>
+		<link>
+			<name>testbench/cpu_top.hpp</name>
+			<type>1</type>
+			<location>/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/cpu_top.hpp</location>
+		</link>
+		<link>
+			<name>testbench/indata.bin</name>
+			<type>1</type>
+			<location>/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/indata.bin</location>
 		</link>
 		<link>
 			<name>testbench/netconfig.cpp</name>
 			<type>1</type>
-			<location>/home/sem14h17/MA/ma_hls/netconfig.cpp</location>
+			<location>/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/netconfig.cpp</location>
+		</link>
+		<link>
+			<name>testbench/netconfig.hpp</name>
+			<type>1</type>
+			<location>/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/netconfig.hpp</location>
 		</link>
 		<link>
 			<name>testbench/network.cpp</name>
 			<type>1</type>
-			<location>/home/sem14h17/MA/ma_hls/networks/AllPoolToSq3x3S2/network.cpp</location>
+			<location>/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/network.cpp</location>
+		</link>
+		<link>
+			<name>testbench/network.hpp</name>
+			<type>1</type>
+			<location>/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/network.hpp</location>
+		</link>
+		<link>
+			<name>testbench/weights.bin</name>
+			<type>1</type>
+			<location>/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/weights.bin</location>
 		</link>
 		<link>
 			<name>solution1/constraints/.xml.directive</name>
 			<type>1</type>
-			<location>/home/sem14h17/MA/ma_hls/vivado_project/solution1/solution1.directive</location>
+			<location>/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/vivado_project/solution1/solution1.directive</location>
 		</link>
 		<link>
 			<name>solution1/constraints/directives.tcl</name>
 			<type>1</type>
-			<location>/home/sem14h17/MA/ma_hls/vivado_project/solution1/directives.tcl</location>
+			<location>/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/vivado_project/solution1/directives.tcl</location>
 		</link>
 		<link>
 			<name>solution1/constraints/script.tcl</name>
 			<type>1</type>
-			<location>/home/sem14h17/MA/ma_hls/vivado_project/solution1/script.tcl</location>
+			<location>/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/vivado_project/solution1/script.tcl</location>
 		</link>
 	</linkedResources>
 </projectDescription>

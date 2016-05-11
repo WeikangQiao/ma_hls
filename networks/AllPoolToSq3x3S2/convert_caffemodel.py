@@ -71,6 +71,9 @@ max_active_area = 0
 max_image_cache = 0
 max_dimension = 0
 max_channels = 0
+total_inputs = 0    # total num. elements read from / written to memory
+total_outputs = 0
+total_dram_IO = 0   # total num. DRAM accesses (input + output) (data + weights)
 
 # manually initialize width/height for first layer
 width_out  = net.blobs['data'].width
@@ -184,8 +187,9 @@ for id,layer_name in enumerate(layer_names):
             layer_count = layer_count + 1
             
             # Update Maximum necessary Cache sizes:
-            weights_size = ch_in*ch_out*kernel*kernel + ch_out;
-            input_size = ch_in*width_in*height_in;
+            weights_size = ch_in*ch_out*kernel*kernel + ch_out
+            input_size = ch_in*width_in*height_in
+            output_size = ch_out*width_out*height_out
             pixels_per_row = ch_in*width_in;
             image_cache_size = 4*pixels_per_row;
             max_image_cache = max(max_image_cache, input_size)
@@ -195,6 +199,9 @@ for id,layer_name in enumerate(layer_names):
             max_active_area = max(ch_in*kernel*kernel, max_active_area)
             max_dimension = max(max_dimension, max(width_in, height_in))
             max_channels = max(max_channels, max(ch_in, ch_out))
+            total_inputs = total_inputs + ch_in*width_in*height_in
+            total_outputs = total_outputs + ch_out*width_out*height_out
+            total_dram_IO = total_dram_IO + input_size + output_size + weights_size
             
             
         # POOLING LAYERS: Modify Previous CONV Layer
@@ -253,9 +260,14 @@ const int MAX_WEIGHTS_PER_LAYER = {};
 const int MAX_IMAGE_CACHE_SIZE = {};
 const int MAX_INPUT_PER_LAYER = {};
 const int MAX_NUM_CHOUT = {};
-const int TOTAL_NUM_WEIGHTS = {};
 const int MAX_DIMENSION = {};
 const int MAX_CHANNELS = {};
+
+const int TOTAL_NUM_WEIGHTS = {};
+const int TOTAL_NUM_INPUTS = {};
+const int TOTAL_NUM_OUTPUTS = {};
+const int TOTAL_DRAM_IO = {};
+
 
 // Mean Pixel for ImageNet Data
 const float MEAN_R = 104;
@@ -269,8 +281,8 @@ network_t *get_network_config();
 
 #endif
 """.format(header, layer_count, weights_cache_needed,image_cache_needed,
-           max_image_cache, max_num_chout, weights_count, max_dimension,
-           max_channels)
+           max_image_cache, max_num_chout, max_dimension, max_channels,
+           weights_count, total_inputs, total_outputs, total_dram_IO )
           
 # double braces in function definition needed because of python's str.format()!
 cfile = """{0}

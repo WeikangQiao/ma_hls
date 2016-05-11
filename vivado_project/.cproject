@@ -15,42 +15,52 @@
 				</extensions>
 			</storageModule>
 			<storageModule moduleId="cdtBuildSystem" version="4.0.0">
-				<configuration artifactName="a.out" buildArtefactType="org.eclipse.cdt.build.core.buildArtefactType.exe" buildProperties="org.eclipse.cdt.build.core.buildArtefactType=org.eclipse.cdt.build.core.buildArtefactType.exe,org.eclipse.cdt.build.core.buildType=org.eclipse.cdt.build.core.buildType.debug" cleanCommand="rm -rf" description="" id="cdt.managedbuild.config.gnu.exe.debug.1859254538" name="Debug" parent="cdt.managedbuild.config.gnu.exe.debug">
+				<configuration artifactName="a.out" buildArtefactType="org.eclipse.cdt.build.core.buildArtefactType.exe" buildProperties="org.eclipse.cdt.build.core.buildArtefactType=org.eclipse.cdt.build.core.buildArtefactType.exe,org.eclipse.cdt.build.core.buildType=org.eclipse.cdt.build.core.buildType.debug" cleanCommand="rm -rf" description="" id="cdt.managedbuild.config.gnu.exe.debug.1859254538" name="Debug" parent="cdt.managedbuild.config.gnu.exe.debug" preannouncebuildStep="Copy Weights and Input Data to Working Directory" prebuildStep="cp networks/AllPoolToSq3x3S2/*.bin .">
 					<folderInfo id="cdt.managedbuild.config.gnu.exe.debug.1859254538." name="/" resourcePath="">
 						<toolChain id="cdt.managedbuild.toolchain.gnu.exe.debug.2102321673" name="Linux GCC" superClass="cdt.managedbuild.toolchain.gnu.exe.debug">
 							<targetPlatform binaryParser="org.eclipse.cdt.core.PE;org.eclipse.cdt.core.ELF" id="cdt.managedbuild.target.gnu.platform.exe.debug.115057441" name="Debug Platform" superClass="cdt.managedbuild.target.gnu.platform.exe.debug"/>
-							<builder buildPath="${workspace_loc:/vivado_project}/Debug" id="cdt.managedbuild.target.gnu.builder.exe.debug.456588534" keepEnvironmentInBuildfile="false" managedBuildOn="true" name="Gnu Make Builder" superClass="cdt.managedbuild.target.gnu.builder.exe.debug"/>
+							<builder autoBuildTarget="all" buildPath="${workspace_loc:/vivado_project}/Debug" cleanBuildTarget="clean" enableAutoBuild="false" enableCleanBuild="true" enabledIncrementalBuild="true" id="cdt.managedbuild.target.gnu.builder.exe.debug.456588534" incrementalBuildTarget="all" keepEnvironmentInBuildfile="false" managedBuildOn="true" name="Gnu Make Builder" parallelBuildOn="false" superClass="cdt.managedbuild.target.gnu.builder.exe.debug"/>
 							<tool id="cdt.managedbuild.tool.gnu.archiver.base.1540603100" name="GCC Archiver" superClass="cdt.managedbuild.tool.gnu.archiver.base"/>
 							<tool id="cdt.managedbuild.tool.gnu.cpp.compiler.exe.debug.262162689" name="GCC C++ Compiler" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.exe.debug">
-								<option id="gnu.cpp.compiler.exe.debug.option.optimization.level.1616107533" name="Optimization Level" superClass="gnu.cpp.compiler.exe.debug.option.optimization.level" value="gnu.cpp.compiler.optimization.level.none" valueType="enumerated"/>
+								<option id="gnu.cpp.compiler.exe.debug.option.optimization.level.1616107533" name="Optimization Level" superClass="gnu.cpp.compiler.exe.debug.option.optimization.level" value="gnu.cpp.compiler.optimization.level.most" valueType="enumerated"/>
 								<option id="gnu.cpp.compiler.exe.debug.option.debugging.level.253086233" name="Debug Level" superClass="gnu.cpp.compiler.exe.debug.option.debugging.level" value="gnu.cpp.compiler.debugging.level.max" valueType="enumerated"/>
 								<option id="gnu.cpp.compiler.option.include.paths.1009541970" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" valueType="includePath">
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include"/>
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/lnx64/tools/auto_cc/include"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/etc"/>
+									<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/auto_cc/include"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/systemc/include"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/ap_sysc"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include"/>
+									<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/."/>
+									<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/networks/AllPoolToSq3x3S2"/>
 									<listOptionValue builtIn="false" value="/home/sem14h17/MA/ma_hls"/>
 									<listOptionValue builtIn="false" value="/home/sem14h17/MA/ma_hls/networks/AllPoolToSq3x3S2"/>
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/lnx64/tools/systemc/include"/>
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include/ap_sysc"/>
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include/etc"/>
+									<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/"/>
 								</option>
 								<option id="gnu.cpp.compiler.option.preprocessor.def.1188737656" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="AESL_TB"/>
 									<listOptionValue builtIn="false" value="__llvm__"/>
 									<listOptionValue builtIn="false" value="__llvm__"/>
 								</option>
+								<option id="gnu.cpp.compiler.option.dialect.std.941762336" name="Language standard" superClass="gnu.cpp.compiler.option.dialect.std" value="gnu.cpp.compiler.dialect.default" valueType="enumerated"/>
+								<option id="gnu.cpp.compiler.option.optimization.flags.1746696577" name="Other optimization flags" superClass="gnu.cpp.compiler.option.optimization.flags" value="-fpack-struct" valueType="string"/>
 								<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.2033377529" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
 							</tool>
 							<tool id="cdt.managedbuild.tool.gnu.c.compiler.exe.debug.1289390168" name="GCC C Compiler" superClass="cdt.managedbuild.tool.gnu.c.compiler.exe.debug">
 								<option defaultValue="gnu.c.optimization.level.none" id="gnu.c.compiler.exe.debug.option.optimization.level.1152541475" name="Optimization Level" superClass="gnu.c.compiler.exe.debug.option.optimization.level" valueType="enumerated"/>
 								<option id="gnu.c.compiler.exe.debug.option.debugging.level.1733402402" name="Debug Level" superClass="gnu.c.compiler.exe.debug.option.debugging.level" value="gnu.c.debugging.level.max" valueType="enumerated"/>
 								<option id="gnu.c.compiler.option.include.paths.475242993" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" valueType="includePath">
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include"/>
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/lnx64/tools/auto_cc/include"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/etc"/>
+									<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/auto_cc/include"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/systemc/include"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/ap_sysc"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include"/>
+									<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/."/>
+									<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/networks/AllPoolToSq3x3S2"/>
 									<listOptionValue builtIn="false" value="/home/sem14h17/MA/ma_hls"/>
 									<listOptionValue builtIn="false" value="/home/sem14h17/MA/ma_hls/networks/AllPoolToSq3x3S2"/>
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/lnx64/tools/systemc/include"/>
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include/ap_sysc"/>
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include/etc"/>
+									<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/"/>
 								</option>
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.38389335" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="AESL_TB"/>
@@ -61,14 +71,14 @@
 							</tool>
 							<tool id="cdt.managedbuild.tool.gnu.c.linker.exe.debug.463993347" name="GCC C Linker" superClass="cdt.managedbuild.tool.gnu.c.linker.exe.debug">
 								<option id="gnu.c.link.option.paths.117234153" name="Library search path (-L)" superClass="gnu.c.link.option.paths" valueType="libPaths">
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/lnx64/tools/systemc/lib"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/systemc/lib"/>
 								</option>
 								<option id="gnu.c.link.option.libs.589172381" name="Libraries (-l)" superClass="gnu.c.link.option.libs"/>
 								<option id="gnu.c.link.option.ldflags.1047941012" name="Linker flags" superClass="gnu.c.link.option.ldflags"/>
 							</tool>
 							<tool id="cdt.managedbuild.tool.gnu.cpp.linker.exe.debug.574887742" name="GCC C++ Linker" superClass="cdt.managedbuild.tool.gnu.cpp.linker.exe.debug">
 								<option id="gnu.cpp.link.option.paths.332564083" name="Library search path (-L)" superClass="gnu.cpp.link.option.paths" valueType="libPaths">
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/lnx64/tools/systemc/lib"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/systemc/lib"/>
 								</option>
 								<option id="gnu.cpp.link.option.libs.1180132280" name="Libraries (-l)" superClass="gnu.cpp.link.option.libs"/>
 								<option id="gnu.cpp.link.option.flags.1091324513" name="Linker flags" superClass="gnu.cpp.link.option.flags"/>
@@ -86,28 +96,42 @@
 						<tool id="cdt.managedbuild.tool.gnu.cpp.compiler.exe.debug.262162689.1962673704" name="GCC C++ Compiler" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.exe.debug.262162689">
 							<option id="gnu.cpp.compiler.option.preprocessor.def.696089097" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def"/>
 							<option id="gnu.cpp.compiler.option.include.paths.2010427643" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" valueType="includePath">
-								<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include"/>
-								<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/lnx64/tools/auto_cc/include"/>
-								<listOptionValue builtIn="false" value="/home/sem14h17/MA/ma_hls"/>
-								<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/lnx64/tools/systemc/include"/>
-								<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include/ap_sysc"/>
-								<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include/etc"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/etc"/>
+								<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/auto_cc/include"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/systemc/include"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/ap_sysc"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include"/>
 							</option>
-							<option id="gnu.cpp.compiler.option.other.other.788904798" name="Other flags" superClass="gnu.cpp.compiler.option.other.other"/>
+							<option id="gnu.cpp.compiler.option.other.other.788904798" name="Other flags" superClass="gnu.cpp.compiler.option.other.other" value="-c -fmessage-length=0" valueType="string"/>
 							<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.1230826509" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
 						</tool>
 					</fileInfo>
+					<fileInfo id="cdt.managedbuild.config.gnu.exe.debug.1859254538.33858017" name="netconfig.cpp" rcbsApplicability="disable" resourcePath="testbench/netconfig.cpp" toolsToInvoke="cdt.managedbuild.tool.gnu.cpp.compiler.exe.debug.262162689.870818317">
+						<tool id="cdt.managedbuild.tool.gnu.cpp.compiler.exe.debug.262162689.870818317" name="GCC C++ Compiler" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.exe.debug.262162689">
+							<option id="gnu.cpp.compiler.option.preprocessor.def.702911774" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def"/>
+							<option id="gnu.cpp.compiler.option.include.paths.1598015654" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" valueType="includePath">
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/etc"/>
+								<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/auto_cc/include"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/systemc/include"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/ap_sysc"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include"/>
+							</option>
+							<option id="gnu.cpp.compiler.option.other.other.1740864715" name="Other flags" superClass="gnu.cpp.compiler.option.other.other" value="-c -fmessage-length=0" valueType="string"/>
+							<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.1232817222" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
+						</tool>
+					</fileInfo>
+					<fileInfo id="cdt.managedbuild.config.gnu.exe.debug.1859254538.2083588526" name="cpu_top.hpp" rcbsApplicability="disable" resourcePath="testbench/cpu_top.hpp" toolsToInvoke=""/>
 					<fileInfo id="cdt.managedbuild.config.gnu.exe.debug.1859254538.512231039" name="fpga_top.cpp" rcbsApplicability="disable" resourcePath="source/fpga_top.cpp" toolsToInvoke="cdt.managedbuild.tool.gnu.cpp.compiler.exe.debug.262162689.428214674">
 						<tool id="cdt.managedbuild.tool.gnu.cpp.compiler.exe.debug.262162689.428214674" name="GCC C++ Compiler" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.exe.debug.262162689">
 							<option id="gnu.cpp.compiler.option.include.paths.665738031" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" valueType="includePath">
-								<listOptionValue builtIn="false" value="./networks/AllPoolToSq3x3S2"/>
-								<listOptionValue builtIn="false" value="."/>
-								<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include"/>
-								<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/lnx64/tools/auto_cc/include"/>
-								<listOptionValue builtIn="false" value="/home/sem14h17/MA/ma_hls"/>
-								<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/lnx64/tools/systemc/include"/>
-								<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include/ap_sysc"/>
-								<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include/etc"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/etc"/>
+								<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/auto_cc/include"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/systemc/include"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/ap_sysc"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include"/>
 							</option>
 							<option id="gnu.cpp.compiler.option.include.files.170678983" name="Include files (-include)" superClass="gnu.cpp.compiler.option.include.files" valueType="includeFiles">
 								<listOptionValue builtIn="false" value="/home/sem14h17/MA/ma_hls/networks/AllPoolToSq3x3S2/network.hpp"/>
@@ -124,7 +148,7 @@
 						</tool>
 					</fileInfo>
 					<sourceEntries>
-						<entry excluding="solution1|*.c*|*.C*" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+						<entry excluding="solution1|source/netconfig.hpp|source/network.hpp|*.c*|*.C*" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
@@ -154,13 +178,17 @@
 								<option id="gnu.cpp.compiler.exe.release.option.optimization.level.954691843" name="Optimization Level" superClass="gnu.cpp.compiler.exe.release.option.optimization.level" value="gnu.cpp.compiler.optimization.level.most" valueType="enumerated"/>
 								<option id="gnu.cpp.compiler.exe.release.option.debugging.level.1542150505" name="Debug Level" superClass="gnu.cpp.compiler.exe.release.option.debugging.level" value="gnu.cpp.compiler.debugging.level.none" valueType="enumerated"/>
 								<option id="gnu.cpp.compiler.option.include.paths.21171007" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" valueType="includePath">
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include"/>
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/lnx64/tools/auto_cc/include"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/etc"/>
+									<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/auto_cc/include"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/systemc/include"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/ap_sysc"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include"/>
+									<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/."/>
+									<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/networks/AllPoolToSq3x3S2"/>
 									<listOptionValue builtIn="false" value="/home/sem14h17/MA/ma_hls"/>
 									<listOptionValue builtIn="false" value="/home/sem14h17/MA/ma_hls/networks/AllPoolToSq3x3S2"/>
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/lnx64/tools/systemc/include"/>
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include/ap_sysc"/>
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include/etc"/>
+									<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/"/>
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.362740458" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
 							</tool>
@@ -168,26 +196,30 @@
 								<option defaultValue="gnu.c.optimization.level.most" id="gnu.c.compiler.exe.release.option.optimization.level.2114671303" name="Optimization Level" superClass="gnu.c.compiler.exe.release.option.optimization.level" valueType="enumerated"/>
 								<option id="gnu.c.compiler.exe.release.option.debugging.level.869342465" name="Debug Level" superClass="gnu.c.compiler.exe.release.option.debugging.level" value="gnu.c.debugging.level.none" valueType="enumerated"/>
 								<option id="gnu.c.compiler.option.include.paths.462507689" name="Include paths (-I)" superClass="gnu.c.compiler.option.include.paths" valueType="includePath">
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include"/>
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/lnx64/tools/auto_cc/include"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/etc"/>
+									<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/auto_cc/include"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/systemc/include"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/ap_sysc"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include"/>
+									<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/."/>
+									<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/networks/AllPoolToSq3x3S2"/>
 									<listOptionValue builtIn="false" value="/home/sem14h17/MA/ma_hls"/>
 									<listOptionValue builtIn="false" value="/home/sem14h17/MA/ma_hls/networks/AllPoolToSq3x3S2"/>
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/lnx64/tools/systemc/include"/>
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include/ap_sysc"/>
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include/etc"/>
+									<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/"/>
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.1161380411" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
 							</tool>
 							<tool id="cdt.managedbuild.tool.gnu.c.linker.exe.release.549465537" name="GCC C Linker" superClass="cdt.managedbuild.tool.gnu.c.linker.exe.release">
 								<option id="gnu.c.link.option.paths.869523187" name="Library search path (-L)" superClass="gnu.c.link.option.paths" valueType="libPaths">
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/lnx64/tools/systemc/lib"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/systemc/lib"/>
 								</option>
 								<option id="gnu.c.link.option.libs.1387796698" name="Libraries (-l)" superClass="gnu.c.link.option.libs"/>
 								<option id="gnu.c.link.option.ldflags.704267127" name="Linker flags" superClass="gnu.c.link.option.ldflags"/>
 							</tool>
 							<tool id="cdt.managedbuild.tool.gnu.cpp.linker.exe.release.1383366359" name="GCC C++ Linker" superClass="cdt.managedbuild.tool.gnu.cpp.linker.exe.release">
 								<option id="gnu.cpp.link.option.paths.1787360635" name="Library search path (-L)" superClass="gnu.cpp.link.option.paths" valueType="libPaths">
-									<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/lnx64/tools/systemc/lib"/>
+									<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/systemc/lib"/>
 								</option>
 								<option id="gnu.cpp.link.option.libs.1733964639" name="Libraries (-l)" superClass="gnu.cpp.link.option.libs"/>
 								<option id="gnu.cpp.link.option.flags.1922355198" name="Linker flags" superClass="gnu.cpp.link.option.flags"/>
@@ -205,36 +237,50 @@
 						<tool id="cdt.managedbuild.tool.gnu.cpp.compiler.exe.release.1138706841.968393786" name="GCC C++ Compiler" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.exe.release.1138706841">
 							<option id="gnu.cpp.compiler.option.preprocessor.def.1872094707" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def"/>
 							<option id="gnu.cpp.compiler.option.include.paths.127446731" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" valueType="includePath">
-								<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include"/>
-								<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/lnx64/tools/auto_cc/include"/>
-								<listOptionValue builtIn="false" value="/home/sem14h17/MA/ma_hls"/>
-								<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/lnx64/tools/systemc/include"/>
-								<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include/ap_sysc"/>
-								<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include/etc"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/etc"/>
+								<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/auto_cc/include"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/systemc/include"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/ap_sysc"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include"/>
 							</option>
-							<option id="gnu.cpp.compiler.option.other.other.211258663" name="Other flags" superClass="gnu.cpp.compiler.option.other.other"/>
+							<option id="gnu.cpp.compiler.option.other.other.211258663" name="Other flags" superClass="gnu.cpp.compiler.option.other.other" value="-c -fmessage-length=0" valueType="string"/>
 							<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.1328057184" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
 						</tool>
 					</fileInfo>
+					<fileInfo id="cdt.managedbuild.config.gnu.exe.release.165702072.1234242196" name="netconfig.cpp" rcbsApplicability="disable" resourcePath="testbench/netconfig.cpp" toolsToInvoke="cdt.managedbuild.tool.gnu.cpp.compiler.exe.release.1138706841.933752488">
+						<tool id="cdt.managedbuild.tool.gnu.cpp.compiler.exe.release.1138706841.933752488" name="GCC C++ Compiler" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.exe.release.1138706841">
+							<option id="gnu.cpp.compiler.option.preprocessor.def.888608243" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def"/>
+							<option id="gnu.cpp.compiler.option.include.paths.290344254" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" valueType="includePath">
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/etc"/>
+								<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/auto_cc/include"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/systemc/include"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/ap_sysc"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include"/>
+							</option>
+							<option id="gnu.cpp.compiler.option.other.other.1142886266" name="Other flags" superClass="gnu.cpp.compiler.option.other.other" value="-c -fmessage-length=0" valueType="string"/>
+							<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.504410479" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
+						</tool>
+					</fileInfo>
+					<fileInfo id="cdt.managedbuild.config.gnu.exe.release.165702072.473604699" name="cpu_top.hpp" rcbsApplicability="disable" resourcePath="testbench/cpu_top.hpp" toolsToInvoke=""/>
 					<fileInfo id="cdt.managedbuild.config.gnu.exe.release.165702072.851526008" name="fpga_top.cpp" rcbsApplicability="disable" resourcePath="source/fpga_top.cpp" toolsToInvoke="cdt.managedbuild.tool.gnu.cpp.compiler.exe.release.1138706841.792975766">
 						<tool id="cdt.managedbuild.tool.gnu.cpp.compiler.exe.release.1138706841.792975766" name="GCC C++ Compiler" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.exe.release.1138706841">
 							<option id="gnu.cpp.compiler.option.preprocessor.def.1395976953" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def"/>
 							<option id="gnu.cpp.compiler.option.include.paths.253535137" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" valueType="includePath">
-								<listOptionValue builtIn="false" value="./networks/AllPoolToSq3x3S2"/>
-								<listOptionValue builtIn="false" value="."/>
-								<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include"/>
-								<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/lnx64/tools/auto_cc/include"/>
-								<listOptionValue builtIn="false" value="/home/sem14h17/MA/ma_hls"/>
-								<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/lnx64/tools/systemc/include"/>
-								<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include/ap_sysc"/>
-								<listOptionValue builtIn="false" value="/usr/pack/vivado-2015.4-kgf/Vivado_HLS/2015.4/include/etc"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/etc"/>
+								<listOptionValue builtIn="false" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/auto_cc/include"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/lnx64/tools/systemc/include"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/ap_sysc"/>
+								<listOptionValue builtIn="false" value="/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include"/>
 							</option>
 							<option id="gnu.cpp.compiler.option.other.other.755921039" name="Other flags" superClass="gnu.cpp.compiler.option.other.other"/>
 							<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.1044425283" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
 						</tool>
 					</fileInfo>
 					<sourceEntries>
-						<entry excluding="solution1|*.c*|*.C*" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+						<entry excluding="solution1|source/netconfig.hpp|source/network.hpp|*.c*|*.C*" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
@@ -260,5 +306,12 @@
 		</scannerConfigBuildInfo>
 	</storageModule>
 	<storageModule moduleId="org.eclipse.cdt.core.LanguageSettingsProviders"/>
-	<storageModule moduleId="refreshScope"/>
+	<storageModule moduleId="refreshScope" versionNumber="2">
+		<configuration configurationName="Debug">
+			<resource resourceType="PROJECT" workspacePath="/vivado_project"/>
+		</configuration>
+		<configuration configurationName="Release">
+			<resource resourceType="PROJECT" workspacePath="/vivado_project"/>
+		</configuration>
+	</storageModule>
 </cproject>

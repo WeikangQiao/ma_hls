@@ -43,7 +43,8 @@ const int MEMORY_ALIGNMENT = 1024 * 1024;  // align data in DRAM to 1MB borders
 // -> adapts to specific Network with definitions in network.hpp
 // ! need to include network.hpp first!
 typedef ap_uint<NBITS(MAX_DIMENSION)> dimension_t;
-typedef ap_uint<NBITS(MAX_CHANNELS)> channel_t;
+typedef ap_uint<NBITS(MAX_CHANNELS)+1> channel_t;
+ // need MAX_CHANNELS +1bit to avoid possible wraparound with packed 1x1 convs
 typedef ap_uint<2> kernel_t;  // =1 or =3
 typedef ap_uint<2> stride_t;  // =1 or =2
 typedef ap_uint<NBITS(MAX_WEIGHTS_PER_LAYER)> weightaddr_t;
@@ -60,7 +61,7 @@ typedef enum __attribute__((packed)) {
   // LAYER_POOL,  // not supported, use all-convolutional networks
 } layertype_t;
 
-typedef enum {
+typedef enum __attribute__((packed)) {
   POOL_NONE,
   POOL_GLOBAL
   // POOL_2x2S2,  // not supported, use all-convolutional networks
@@ -85,8 +86,8 @@ struct __attribute__((packed)) layer_t {
   memaddr_t mem_addr_output;
   memaddr_t mem_addr_weights;
   bool is_expand_layer;
+  // ap_uint<12> dummy;
   pooltype_t pool;
-  /*ap_uint<1> dummy;*/
   // full constructor, used to define network in network.cpp
   layer_t(const char *n, layertype_t t, int w, int h, int ci, int co, int k,
           int p, int s, int mem_i = 0, int mem_o = 0, int mem_w = 0,
@@ -103,8 +104,7 @@ struct __attribute__((packed)) layer_t {
         mem_addr_output(mem_o),
         mem_addr_weights(mem_w),
         is_expand_layer(is_expand),
-        pool(pool)/*,
-        dummy(0)*/ {
+        pool(pool) {
     for (int i = 0; i < NET_NAME_MAX_LEN; i++) {
       name[i] = n[i];
       if (n[i] == 0) break;
@@ -113,8 +113,7 @@ struct __attribute__((packed)) layer_t {
   };
   // empty constructor, needed for empty array of layer_t in FPGA BRAM
   layer_t()
-      : name(""),
-        type(LAYER_NONE),
+      : type(LAYER_NONE),
         width(0),
         height(0),
         channels_in(0),
@@ -126,16 +125,19 @@ struct __attribute__((packed)) layer_t {
         mem_addr_output(0),
         mem_addr_weights(0),
         is_expand_layer(0),
-        pool(POOL_NONE)/*,
-        dummy(0)*/ {};
+        pool(POOL_NONE){
+            name[0] = 0;
+        };
 };
 
 // =========================
 // = CPU <-> FPGA BUS TYPE =
 // =========================
-typedef int bus_t;
-const int transactions_per_layer = sizeof(layer_t)/sizeof(bus_t);
-
+typedef union {
+  data_t f;
+  int i;
+} bus_t;
+//const int transactions_per_layer = sizeof(layer_t) / sizeof(bus_t);
 
 // ====================
 // = Struct NETWORK_T =

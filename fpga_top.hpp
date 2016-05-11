@@ -15,8 +15,11 @@
 
 #include <cassert>
 #include <cmath>
-#include <ap_int.h>
-//#include <ap_utils.h>
+#include "ap_int.h"
+
+#ifdef __SYNTHESIS__
+#include <ap_utils.h>
+#endif
 
 #include "network.hpp"
 #include "netconfig.hpp"
@@ -48,9 +51,9 @@ typedef ap_int<NBITS(MAX_DIMENSION) + 2> coordinate_t;
 // ==============================
 // = FPGA Top Function / Module =
 // ==============================
-void fpga_top(volatile bus_t *DRAM, unsigned int num_layers,
-              unsigned int byte_layerconfig_offset,
-              unsigned int byte_weights_offset, unsigned int byte_input_offset);
+void fpga_top(volatile layer_t *DRAM_LAYERCONFIG, volatile data_t *SHARED_DRAM,
+              unsigned int num_layers, unsigned int byte_weights_offset,
+              unsigned int byte_input_offset);
 
 // ================================
 // = Debugging Output (Helper Fn) =
@@ -71,5 +74,11 @@ void fpga_top(volatile bus_t *DRAM, unsigned int num_layers,
   do {           \
   } while (0)
 #endif  // EBUG
+
+// ===================================================================
+// = Pragma Indirection (allows use of DEFINED variables in #pragma) =
+// ===================================================================
+#define PRAGMA_SUB(x) _Pragma(#x)
+#define PRAGMA_HLS(x) PRAGMA_SUB(x)
 
 #endif

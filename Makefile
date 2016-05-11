@@ -1,4 +1,4 @@
-NETWORK = ./networks/AllPoolToSq3x3S2
+NETWORK = #./networks/AllPoolToSq3x3S2
 
 CC = g++
 CFLAGS = -I. -I./vivado_include -I$(NETWORK) -Wall -g -Wno-unknown-pragmas -Wno-unused-label -O3
@@ -14,7 +14,7 @@ run: compileandlink
 	
 debug: CFLAGS += -DEBUG
 debug: compileandlink
-	cp $(NETWORK)/indata.bin indata.bin
+	#cp $(NETWORK)/indata.bin indata.bin
 	./test &> test.out
 
 clean:
@@ -29,7 +29,7 @@ clean:
 
 compileandlink: $(OBJS)
 	# copy weights binary from network to root directory
-	cp $(NETWORK)/weights.bin weights.bin
+	#cp $(NETWORK)/weights.bin weights.bin
 	$(CC) -o test $^ $(CFLAGS)
 
 .PHONY: all test clean

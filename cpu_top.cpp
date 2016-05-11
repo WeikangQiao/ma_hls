@@ -34,6 +34,11 @@ void allocate_FPGA_memory(network_t *net_CPU) {
   int weightsize = net_CPU->num_weights * sizeof(data_t);
   int datasize = net_CPU->total_pixel_mem * sizeof(data_t);
 
+  // Round memory areas to 32-bit boundaries
+  configsize = std::ceil(configsize / 4.0) * 4;
+  weightsize = std::ceil(weightsize / 4.0) * 4;
+  datasize = std::ceil(datasize / 4.0) * 4;
+
   // Memory Allocation
   SHARED_DRAM = (char *)malloc(configsize + weightsize + datasize);
 
@@ -47,7 +52,7 @@ void allocate_FPGA_memory(network_t *net_CPU) {
   printf("     Bytes allocated: %dB (config) + %dKB (weights) + %dKB (data)\n",
          configsize, weightsize / 1024, datasize / 1024);
   printf("     region: %lu – %lu\n", (long)SHARED_DRAM,
-         (long)((char *)SHARED_DRAM + configsize + weightsize + datasize));
+         (long)(SHARED_DRAM + configsize + weightsize + datasize));
 }
 
 // =====================================================
@@ -82,6 +87,10 @@ void load_prepared_input_image(data_t *input_image, const char *filename,
 
   // load binary data from file
   FILE *infile = fopen(filename, "r");
+  if (!infile) {
+    printf("ERROR: File %s could not be opened!\n", filename);
+    exit(-1);
+  }
   fread(input_image, sizeof(data_t), num_pixels, infile);
   fclose(infile);
 }
@@ -144,7 +153,7 @@ void calculate_softmax(network_t *net_CPU, data_t *results,
     // Average over spatial output dimensions
     results[i] /= num_output_pixels;
     // Find maximum result
-    maxresult = std::fmax(maxresult, results[i]);
+    maxresult = std::max(maxresult, results[i]);
     DBG(" %6.2f ", results[i]);
   }
   DBG(" (maximum: %6.2f)\n", maxresult);
@@ -271,12 +280,14 @@ int main() {
   // Generate + Load Network Config from network.hpp/network.cpp
   network_t *net_CPU;
   net_CPU = get_network_config();
-  
+
   // Assert that layer_t fits into a multiple of bus transactions:
-  printf("size of layer_t: %d, size of bus_t: %d", (int)sizeof(layer_t),
-      (int)sizeof(bus_t));
-  assert((sizeof(layer_t) % sizeof(bus_t) == 0) &&
-         "layert_t is not multiple of bus size. adjust size of layer_t.dummy!");
+  // ONLY NECESSARY IF WE CAN MAP LAYER_T TRANSFER ONTO BUS_T AXI MASTER
+  // printf("size of layer_t: %d, size of bus_t: %d", (int)sizeof(layer_t),
+  //       (int)sizeof(bus_t));
+  // assert((sizeof(layer_t) % sizeof(bus_t) == 0) &&
+  //       "layert_t is not multiple of bus size. adjust size of
+  //       layer_t.dummy!");
 
   // ==========================
   // = Setup FPGA Accelerator =
@@ -313,8 +324,8 @@ int main() {
   // ============================
   // = Execute FPGA Accelerator =
   // ============================
-  fpga_top((int *)SHARED_DRAM, net_CPU->num_layers,
-           (unsigned long)SHARED_DRAM_LAYER_CONFIG - (unsigned long)SHARED_DRAM,
+  printf("SHARED_DRAM is at address: %lu\n", (long)SHARED_DRAM);
+  fpga_top(SHARED_DRAM_LAYER_CONFIG, (data_t *)SHARED_DRAM, net_CPU->num_layers,
            (unsigned long)SHARED_DRAM_WEIGHTS - (unsigned long)SHARED_DRAM,
            (unsigned long)SHARED_DRAM_DATA - (unsigned long)SHARED_DRAM);
 
@@ -339,5 +350,18 @@ int main() {
     printf("    %5.2f%%: class %3d (output %6.2f)\n",
            100 * probabilities[i].first, probabilities[i].second,
            results[probabilities[i].second]);
+  }
+
+  // ====================
+  // = TestBench Result =
+  // ====================
+  // Check if output is 93.50% (+- 0.1%)
+  // if (fabs(100 * probabilities[0].first - 93.50) < 0.1) {
+  if (fabs(100 * probabilities[0].first - 23.32) < 0.1) {
+    printf("\nTestBench Result: SUCCESS\n");
+    return 0;
+  } else {
+    printf("\nTestBench Result: FAILURE\n");
+    return -1;
   }
 }

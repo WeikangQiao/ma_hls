@@ -15,9 +15,14 @@ const int MAX_WEIGHTS_PER_LAYER = 513000;
 const int MAX_IMAGE_CACHE_SIZE = 32768;
 const int MAX_INPUT_PER_LAYER = 1048576;
 const int MAX_NUM_CHOUT = 1000;
-const int TOTAL_NUM_WEIGHTS = 1577800;
 const int MAX_DIMENSION = 256;
 const int MAX_CHANNELS = 1000;
+
+const int TOTAL_NUM_WEIGHTS = 1577800;
+const int TOTAL_NUM_INPUTS = 3866624;
+const int TOTAL_NUM_OUTPUTS = 3663872;
+const int TOTAL_DRAM_IO = 9108296;
+
 
 // Mean Pixel for ImageNet Data
 const float MEAN_R = 104;

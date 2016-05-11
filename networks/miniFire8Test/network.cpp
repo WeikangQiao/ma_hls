@@ -12,11 +12,11 @@ network_t *get_network_config() {
 
   //                                                                            UPD
   // Layer Attributes: ( NAME   , TYPE      ,   W,   H,   CI,  CO, K, P, S) EXP MEM POOL Type
-  addLayer(net, layer_t("conv1 ", LAYER_CONV,   8,   8,    3,   8, 3, 1, 2), 0,  1, POOL_NONE);
+  addLayer(net, layer_t("cnv1  ", LAYER_CONV,   8,   8,    3,   8, 3, 1, 2), 0,  1, POOL_NONE);
   addLayer(net, layer_t("f/s1  ", LAYER_CONV,   4,   4,    8,   2, 1, 0, 1), 0,  1, POOL_NONE);
   addLayer(net, layer_t("f/e1  ", LAYER_CONV,   4,   4,    2,   4, 1, 0, 1), 1,  1, POOL_NONE);
   addLayer(net, layer_t("f/e3  ", LAYER_CONV,   4,   4,    2,   4, 3, 1, 1), 1,  0, POOL_NONE);
-  addLayer(net, layer_t("conv10", LAYER_CONV,   4,   4,    8,  10, 1, 0, 1), 0,  1, POOL_GLOBAL);
+  addLayer(net, layer_t("cnv10 ", LAYER_CONV,   4,   4,    8,  10, 1, 0, 1), 0,  1, POOL_GLOBAL);
 
   net->num_weights = 420;
   const char* filename = "weights.bin";

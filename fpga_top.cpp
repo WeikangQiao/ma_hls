@@ -20,16 +20,6 @@ data_t ACTIVE_AREA[TILING_CI][9];
 data_t OUTPUT_CACHE[MAX_NUM_CHOUT];
 data_t GLOBAL_POOL_CACHE[MAX_NUM_CHOUT];
 
-// Shared DRAM Memory Pointers
-bus_t *DRAM_LAYERCONFIG;
-data_t *DRAM_WEIGHTS;
-data_t *DRAM_DATA;
-data_t *DRAM_WEIGHTS_PTR;       // current layer weights (mem region start)
-data_t *DRAM_INPUT_PTR;         // current layer's input (mem region start)
-data_t *DRAM_OUTPUT_PTR;        // current layer's output (mem region start)
-data_t *DRAM_INPUT_PIXEL_PTR;   // current input pixel
-data_t *DRAM_OUTPUT_PIXEL_PTR;  // current output pixel
-
 // Layer-Specific Registers / Wires
 layer_t layer;
 layerid_t current_layer;
@@ -50,6 +40,97 @@ imgdramoffset_t img_dram_offset;
 cacheline_t curr_img_cache_line;
 imgcacheaddr_t img_cache_addr;
 
+// ======================
+// = FETCH_LAYER_CONFIG =
+// ======================
+void fetch_layer_config(unsigned int num_layers,
+                        volatile layer_t *DRAM_LAYERCONFIG) {
+  // Fetch Layer Configuration
+  for (int l = 0; l < num_layers; l++) {
+    BRAM_LAYER_CONFIG[l] = ((layer_t *)DRAM_LAYERCONFIG)[l];
+  }
+  int bytes_transferred = sizeof(layer_t) * num_layers;
+  printf("FPGA: Fetch Layer Config from DRAM to BRAM: (%d Bytes)\n",
+         bytes_transferred);
+}
+
+// ============================
+// = EXTRACT_LAYER_PROPERTIES =
+// ============================
+void extract_layer_properties() {
+  // ===================================
+  // = Layer-Specific Global Registers =
+  // ===================================
+  width_in = layer.width;
+  height_in = layer.height;
+  ch_in = layer.channels_in;
+  ch_out = layer.channels_out;
+  kernel = layer.kernel;
+  stride = layer.stride;
+  pad = layer.pad;
+  width_out = (stride == 2) ? (width_in / 2) : (width_in / 1);
+  height_out = (stride == 2) ? (height_in / 2) : (height_in / 1);
+  pixels_per_row = width_in * ch_in;
+
+  // ==========================================
+  // = Convolution Kernel Setup (1x1 vs. 3x3) =
+  // ==========================================
+  if (kernel == 3) {
+    num_ch_out_per_convolution = 1;
+    weights_per_filter = 9;
+  } else {
+    num_ch_out_per_convolution = 9;
+    weights_per_filter = 1;
+  }
+
+  // ============================
+  // = Constraints / Assertions =
+  // ============================
+  // Assertions / Constraints to enable Optimizations:
+  assert(layer.width == 0 | layer.width == 1 | layer.width == 2 |
+         layer.width == 4 | layer.width == 8 | layer.width == 16 |
+         layer.width == 32 | layer.width == 64 | layer.width == 128 |
+         layer.width == 256);
+  assert(layer.width == 0 | layer.height == 1 | layer.height == 2 |
+         layer.height == 4 | layer.height == 8 | layer.height == 16 |
+         layer.height == 32 | layer.height == 64 | layer.height == 128 |
+         layer.height == 256);
+  assert(layer.channels_in == 1 | layer.channels_in == 2 |
+         layer.channels_in == 3 | layer.channels_in == 4 |
+         layer.channels_in == 8 | layer.channels_in == 16 |
+         layer.channels_in == 32 | layer.channels_in == 64 |
+         layer.channels_in == 128 | layer.channels_in == 256 |
+         layer.channels_in == 512);
+  assert(layer.channels_out == 1 | layer.channels_out == 2 |
+         layer.channels_out == 4 | layer.channels_out == 8 |
+         layer.channels_out == 10 | layer.channels_out == 16 |
+         layer.channels_out == 32 | layer.channels_out == 64 |
+         layer.channels_out == 128 | layer.channels_out == 256 |
+         layer.channels_out == 512 | layer.channels_out == 1000);
+  assert(layer.pad == 0 | layer.pad == 1);
+  assert(layer.stride == 1 | layer.stride == 2);
+  assert(layer.kernel == 1 | layer.kernel == 3);
+  // Make sure that all 3x3 kernels use padding, all 1x1 kernels don't.
+  assert((layer.kernel == 3 & layer.pad) | (layer.kernel == 1 & !layer.pad));
+
+  assert(num_ch_out_per_convolution == 1 | num_ch_out_per_convolution == 9);
+  assert(weights_per_filter == 1 | weights_per_filter == 9);
+  // printf("##### num weights per filter = %d #######\n",
+  // (int)weights_per_filter);
+  // printf("##### num chout per conv = %d #######\n",
+  // (int)num_ch_out_per_convolution);
+
+  // Print Layer Infos
+  printf("L%-2d", (int)current_layer);
+  printf("%-6s ", layer.name);
+  printf("convolution layer, K=%d, S=%d, P=%d\n", (int)layer.kernel,
+         (int)layer.stride, (int)layer.pad);
+
+  // Debug Output: Memory Addresses
+  DBG("    mem_addr_input: %d, mem_addr_output: %d, mem_addr_weights: %d\n",
+      layer.mem_addr_input, layer.mem_addr_output, layer.mem_addr_weights);
+}
+
 // ====================
 // = Main FPGA Module =
 // ====================
@@ -61,65 +142,58 @@ imgcacheaddr_t img_cache_addr;
 //    AXI4 Slave Interface. Registers that hold information on where to
 //    fetch actual configuration from in DRAM.
 //
-void fpga_top(volatile bus_t *DRAM, unsigned int num_layers,
-              unsigned int byte_layerconfig_offset,
-              unsigned int byte_weights_offset,
+void fpga_top(volatile layer_t *DRAM_LAYERCONFIG, volatile data_t *SHARED_DRAM,
+              unsigned int num_layers, unsigned int byte_weights_offset,
               unsigned int byte_input_offset) {
+//
 // ===========================
 // = Interface Specification =
 // ===========================
 
 // AXI4 Master
-// ap_bus + AXI4 Master for connection to DRAM (via DMA)
-#pragma HLS INTERFACE ap_bus port = DRAM
-#pragma HLS RESOURCE core = AXI4M variable = DRAM
+// ap_bus + AXI4 Master for connection to DATA DRAM (via DMA)
+//  PRAGMA_HLS(HLS INTERFACE m_axi depth=TOTAL_DRAM_IO port=DRAM_BUS
+//  offset=slave)
+#pragma HLS INTERFACE m_axi depth = 700000 port = DRAM_BUS offset = direct
+
+// ap_bus + AXI4 Master for connection to LAYERCFG DRAM (via DMA)
+#pragma HLS DATA_PACK variable = DRAM_LAYERCONFIG struct_level
+  PRAGMA_HLS(HLS INTERFACE m_axi depth = MAX_NUM_LAYERS port =
+                 DRAM_LAYERCONFIG offset = direct)
 
 // AXI4 Lite + Registers for Configuration Data
-#pragma HLS RESOURCE core = AXI4LiteS variable = return metadata = \
-    "-bus_bundle LITE"
-#pragma HLS INTERFACE ap_none register port = num_layers
-#pragma HLS RESOURCE core = AXI4LiteS variable = \
-    byte_weights_offset metadata = "-bus_bundle LITE"
-#pragma HLS INTERFACE ap_none register port = byte_weights_offset
-#pragma HLS RESOURCE core = AXI4LiteS variable = \
-    byte_weights_offset metadata = "-bus_bundle LITE"
-#pragma HLS INTERFACE ap_none register port = byte_layerconfig_offset
-#pragma HLS RESOURCE core = AXI4LiteS variable = \
-    byte_layerconfig_offset metadata = "-bus_bundle LITE"
-#pragma HLS INTERFACE ap_none register port = byte_input_offset
-#pragma HLS RESOURCE core = AXI4LiteS variable = byte_input_offset metadata = \
-    "-bus_bundle LITE"
+#pragma HLS INTERFACE s_axilite port = num_layers register bundle = LITE
+#pragma HLS INTERFACE s_axilite port = byte_weights_offset register bundle = \
+    LITE
+#pragma HLS INTERFACE s_axilite port = byte_input_offset register bundle = LITE
+#pragma HLS INTERFACE s_axilite port = return register bundle = LITE
 
-#ifndef __SYNTHESIS__
+// =============================
+// = Shared DRAM Memory Config =
+// =============================
+#pragma HLS RESOURCE variable = BRAM_LAYER_CONFIG core = RAM_1P_BRAM
+
+  // layer_t *DRAM_LAYERCONFIG;
+  volatile data_t *DRAM_WEIGHTS;
+  volatile data_t *DRAM_DATA;
+  volatile data_t *DRAM_WEIGHTS_PTR;  // curr layer's weights (mem region start)
+  volatile data_t *DRAM_INPUT_PTR;    // curr layer's input (mem region start)
+  volatile data_t *DRAM_OUTPUT_PTR;   // curr layer's output (mem region start)
+  volatile data_t *DRAM_INPUT_PIXEL_PTR;   // current input pixel
+  volatile data_t *DRAM_OUTPUT_PIXEL_PTR;  // current output pixel
+
   printf("\nStart FPGA Module:\n====================\n\n");
-#endif
 
   // ======================================
   // = Initial Setup (DRAM, Layer Config) =
   // ======================================
 
   // Setup Pointers into shared DRAM
-  DRAM_LAYERCONFIG = (bus_t *)(DRAM + byte_layerconfig_offset / sizeof(bus_t));
-  DRAM_WEIGHTS = (data_t *)(DRAM + byte_weights_offset / sizeof(bus_t));
-  DRAM_DATA = (data_t *)(DRAM + byte_input_offset / sizeof(bus_t));
+  DRAM_WEIGHTS = (data_t *)(SHARED_DRAM + byte_weights_offset / sizeof(data_t));
+  DRAM_DATA = (data_t *)(SHARED_DRAM + byte_input_offset / sizeof(data_t));
 
   // Fetch Layer Configuration
-  bus_t rx_transaction[transactions_per_layer];
-  int bytes_transferred = 0;
-  for (int l = 0; l < num_layers; l++) {
-    for (int t = 0; t < transactions_per_layer; t++) {
-      memcpy(&rx_transaction[t],
-             (DRAM_LAYERCONFIG + l * transactions_per_layer + t),
-             sizeof(bus_t));
-      bytes_transferred += sizeof(bus_t);
-    }
-    BRAM_LAYER_CONFIG[l] = *((layer_t*)rx_transaction);
-  }
-// memcpy(BRAM_LAYER_CONFIG, DRAM_LAYERCONFIG, cfg_bytes);
-#ifndef __SYNTHESIS__
-  printf("FPGA: Fetch Layer Config from DRAM to BRAM: (%d Bytes)\n",
-         bytes_transferred);
-#endif
+  fetch_layer_config(num_layers, DRAM_LAYERCONFIG);
 
 // ========================
 // = Loop Level 1: Layers =
@@ -131,67 +205,17 @@ L_LAYERS:
     // ============================
     layer = BRAM_LAYER_CONFIG[current_layer];
 
-#ifndef __SYNTHESIS__
-    // Print Layer Infos
-    printf("L%-2d", (int)current_layer);
-    printf("%-6s ", layer.name);
-    printf("convolution layer, K=%d, S=%d, P=%d\n", (int)layer.kernel,
-           (int)layer.stride, (int)layer.pad);
-#endif
-
-    // Debug Output: Memory Addresses
-    DBG("    mem_addr_input: %d, mem_addr_output: %d, mem_addr_weights: %d\n",
-        layer.mem_addr_input, layer.mem_addr_output, layer.mem_addr_weights);
-
-    // ============================
-    // = Constraints / Assertions =
-    // ============================
-    // Assertions / Constraints to enable Optimizations:
-    assert(layer.width == 0 | layer.width == 1 | layer.width == 2 |
-           layer.width == 4 | layer.width == 8 | layer.width == 16 |
-           layer.width == 32 | layer.width == 64 | layer.width == 128 |
-           layer.width == 256);
-    assert(layer.width == 0 | layer.height == 1 | layer.height == 2 |
-           layer.height == 4 | layer.height == 8 | layer.height == 16 |
-           layer.height == 32 | layer.height == 64 | layer.height == 128 |
-           layer.height == 256);
-    assert(layer.channels_in == 1 | layer.channels_in == 2 |
-           layer.channels_in == 3 | layer.channels_in == 4 |
-           layer.channels_in == 8 | layer.channels_in == 16 |
-           layer.channels_in == 32 | layer.channels_in == 64 |
-           layer.channels_in == 128 | layer.channels_in == 256 |
-           layer.channels_in == 512);
-    assert(layer.channels_out == 1 | layer.channels_out == 2 |
-           layer.channels_out == 4 | layer.channels_out == 8 |
-           layer.channels_out == 10 | layer.channels_out == 16 |
-           layer.channels_out == 32 | layer.channels_out == 64 |
-           layer.channels_out == 128 | layer.channels_out == 256 |
-           layer.channels_out == 512 | layer.channels_out == 1000);
-    assert(layer.pad == 0 | layer.pad == 1);
-    assert(layer.stride == 1 | layer.stride == 2);
-    assert(layer.kernel == 1 | layer.kernel == 3);
-    // Make sure that all 3x3 kernels use padding, all 1x1 kernels don't.
-    assert((layer.kernel == 3 & layer.pad) | (layer.kernel == 1 & !layer.pad));
-
     // ===================================
     // = Layer-Specific Global Registers =
     // ===================================
-    width_in = layer.width;
-    height_in = layer.height;
-    ch_in = layer.channels_in;
-    ch_out = layer.channels_out;
-    kernel = layer.kernel;
-    stride = layer.stride;
-    pad = layer.pad;
-    width_out = (stride == 2) ? (width_in / 2) : (width_in / 1);
-    height_out = (stride == 2) ? (height_in / 2) : (height_in / 1);
-    pixels_per_row = width_in * ch_in;
+    extract_layer_properties();
 
     // ==================================
     // = Image Cache Setup (DRAM Input) =
     // ==================================
     // Set DRAM Memory Pointer
-    DRAM_INPUT_PTR = ((data_t *)DRAM_DATA + layer.mem_addr_input);
+    DRAM_INPUT_PTR =
+        (DRAM_DATA + layer.mem_addr_input * sizeof(data_t) / sizeof(bus_t));
 
     // Debug: Print Infos about Image Cache Addresses
     DBG("    setup image cache: fetch from %lu (preload %dkB, total %dkB)\n",
@@ -202,31 +226,21 @@ L_LAYERS:
     // = Weights Cache Setup =
     // =======================
     // Copy Layer Weights from DRAM -> BRAM
-    DRAM_WEIGHTS_PTR = ((data_t *)DRAM_WEIGHTS + layer.mem_addr_weights);
+    DRAM_WEIGHTS_PTR =
+        (DRAM_WEIGHTS +
+         layer.mem_addr_weights * sizeof(data_t) / sizeof(bus_t));
     int num_weights_in_layer = ch_in * ch_out * kernel * kernel + ch_out;
     int weights_size_bytes = num_weights_in_layer * sizeof(data_t);
     DBG("    setup weights cache: will fetch from %lu (%dkB)\n",
         (long)DRAM_WEIGHTS_PTR, weights_size_bytes / 1024);
-    memcpy(WEIGHTS_CACHE, DRAM_WEIGHTS_PTR, weights_size_bytes);
+    memcpy(WEIGHTS_CACHE, (data_t *)DRAM_WEIGHTS_PTR, weights_size_bytes);
 
     // ======================
     // = Output Cache Setup =
     // ======================
     // Set DRAM Memory Pointer (to beginning of output section)
-    data_t *DRAM_OUTPUT_PTR = ((data_t *)DRAM_DATA + layer.mem_addr_output);
-
-    // ==========================================
-    // = Convolution Kernel Setup (1x1 vs. 3x3) =
-    // ==========================================
-    if (kernel == 3) {
-      num_ch_out_per_convolution = 1;
-      weights_per_filter = 9;
-    } else {
-      num_ch_out_per_convolution = 9;
-      weights_per_filter = 1;
-    }
-    assert(num_ch_out_per_convolution == 1 | num_ch_out_per_convolution == 9);
-    assert(weights_per_filter == 1 | weights_per_filter == 9);
+    DRAM_OUTPUT_PTR =
+        (DRAM_DATA + layer.mem_addr_output * sizeof(data_t) / sizeof(bus_t));
 
     // ========================
     // = Loop Level 2: Rows Y =
@@ -382,7 +396,9 @@ L_LAYERS:
             // copy from DRAM into IMAGE Cache
             // img_dram_offset is set to beginning of row in Y-Loop Body
             // img_dram_offset is incremented by 1 here for every pixel/channel
-            memcpy(&pixel_from_ram, DRAM_INPUT_PTR + img_dram_offset,
+            memcpy(&pixel_from_ram,
+                   (data_t *)(DRAM_INPUT_PTR +
+                              img_dram_offset * sizeof(data_t) / sizeof(bus_t)),
                    sizeof(data_t));
             IMAGE_CACHE[img_cache_addr] = pixel_from_ram;
             DBG("load next input channel from RAM: @%lu->@%lu (%010.3f)\n",
@@ -451,8 +467,9 @@ L_LAYERS:
                 }
               }
             }
+            DBG(")^T");
           }
-          DBG(")^T\n");
+          DBG("\n");
 
           // ========================
           // = Debug: Print AA SREG =
@@ -495,6 +512,8 @@ L_LAYERS:
         // -> co points to start of such a "block of output channels"
         L_CH_OUT:
           for (co = 0; co < ch_out; co += num_ch_out_per_convolution) {
+            // DBG("co=%d, ch_out=%d, num_ch_out_per_convolution=%d\n",(int)co,
+            // (int)ch_out, (int)num_ch_out_per_convolution);
             // Debug: What Channel(s) (in > out) MACC'ed in this co-iteration
             for (int l = 0; l < num_ch_out_per_convolution; l++) {
               if ((co + l) < ch_out) DBG("(%d>%d) ", (int)ci, (int)co + l);
@@ -622,11 +641,13 @@ L_LAYERS:
         if (layer.is_expand_layer) {
           // Expand Layers are interleaved -> leave space for 2x channels_out
           DBG("            (expand layer, doubling virtual output channels)\n");
-          DRAM_OUTPUT_PIXEL_PTR =
-              (DRAM_OUTPUT_PTR + 2 * ch_out * (width_out * y_out + x_out));
+          DRAM_OUTPUT_PIXEL_PTR = (DRAM_OUTPUT_PTR +
+                                   2 * ch_out * (width_out * y_out + x_out) *
+                                       sizeof(data_t) / sizeof(bus_t));
         } else {
-          DRAM_OUTPUT_PIXEL_PTR =
-              (DRAM_OUTPUT_PTR + ch_out * (width_out * y_out + x_out));
+          DRAM_OUTPUT_PIXEL_PTR = (DRAM_OUTPUT_PTR +
+                                   ch_out * (width_out * y_out + x_out) *
+                                       sizeof(data_t) / sizeof(bus_t));
         }
 
       // =====================================
@@ -664,7 +685,7 @@ L_LAYERS:
               GLOBAL_POOL_CACHE[co] = value;
               DBG("(GPOOL i): %9.3f, ", GLOBAL_POOL_CACHE[co]);
             } else {
-              GLOBAL_POOL_CACHE[co] += value;
+              GLOBAL_POOL_CACHE[co] = GLOBAL_POOL_CACHE[co] + value;
               DBG("(GPOOL u): %9.3f, ", GLOBAL_POOL_CACHE[co]);
             }
           }  // other types of pooling: not supported. use all-conv networks!
@@ -674,7 +695,8 @@ L_LAYERS:
           // =============================
           DBG("WB(@%lu): %6.2f\n",
               ((long)(DRAM_OUTPUT_PIXEL_PTR + co) - (long)DRAM_DATA), value);
-          memcpy(DRAM_OUTPUT_PIXEL_PTR + co, &value, sizeof(value));
+          memcpy((data_t *)DRAM_OUTPUT_PIXEL_PTR + co, &value, sizeof(value));
+
         }  // end for co
 
         DBG("\n");
@@ -687,8 +709,8 @@ L_LAYERS:
   // = Write-Back GLOBAL POOLING =
   // =============================
   // ch_out still holds value from last layer
-  memcpy(DRAM_DATA, GLOBAL_POOL_CACHE, ch_out * sizeof(data_t));
-#ifndef __SYNTHESIS__
+  memcpy((data_t *)DRAM_DATA, (data_t *)GLOBAL_POOL_CACHE,
+         ch_out * sizeof(data_t));
   printf("\nFPGA: Copy results back to DRAM (%d Bytes)\n",
          (int)(ch_out * sizeof(data_t)));
 
@@ -714,7 +736,7 @@ L_LAYERS:
   outfile = fopen("DRAM_DATA.bin", "wb");
   // DRAM_OUTPUT_PIXEL_PTR still points to last written entry...
   nbytes = (long)(DRAM_OUTPUT_PIXEL_PTR + layer.channels_out) - (long)DRAM_DATA;
-  fwrite(DRAM_DATA, sizeof(char), nbytes, outfile);
+  fwrite((data_t *)DRAM_DATA, sizeof(char), nbytes, outfile);
   fclose(outfile);
 
   // Write whole WEIGHT DRAM Region to File:
@@ -724,7 +746,7 @@ L_LAYERS:
   data_t *DRAM_WEIGHTS_END_PTR =
       ((data_t *)DRAM_WEIGHTS + layer.mem_addr_weights + n_weights_last_layer);
   nbytes = (long)DRAM_WEIGHTS_END_PTR - (long)DRAM_WEIGHTS;
-  fwrite(DRAM_WEIGHTS, sizeof(char), nbytes, outfile);
+  fwrite((data_t *)DRAM_WEIGHTS, sizeof(char), nbytes, outfile);
   fclose(outfile);
 
   // ===============================
@@ -734,5 +756,4 @@ L_LAYERS:
     DBG("%s Result Memory Offset: %lu\n", BRAM_LAYER_CONFIG[layer_id].name,
         BRAM_LAYER_CONFIG[layer_id].mem_addr_output * sizeof(data_t));
   }
-#endif
 }

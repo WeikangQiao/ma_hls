@@ -30,9 +30,9 @@ void addLayer(network_t *net, layer_t layer, bool is_expand_layer,
   // Data Size Calculations
   int input_data_pixels = layer.width * layer.height * layer.channels_in;
   int width_out =
-      floor((layer.width + 2 * layer.pad - layer.kernel) / layer.stride) + 1;
+      std::floor((float)(layer.width + 2 * layer.pad - layer.kernel) / layer.stride) + 1;
   int height_out =
-      floor((layer.height + 2 * layer.pad - layer.kernel) / layer.stride) + 1;
+	  std::floor((float)(layer.height + 2 * layer.pad - layer.kernel) / layer.stride) + 1;
   int output_data_pixels = width_out * height_out * layer.channels_out;
   int num_weights =  // conv + bias weights
       layer.channels_out * layer.channels_in * layer.kernel * layer.kernel +
@@ -92,6 +92,10 @@ void addLayer(network_t *net, layer_t layer, bool is_expand_layer,
 
 void loadWeightsFromFile(network_t *net, const char *filename) {
   FILE *filehandle = fopen(filename, "r");
+  if (!filehandle) {
+    printf("ERROR: File %s could not be opened!\n", filename);
+    exit(-1);
+  }
 
   for (int i = 0; i < net->num_layers; i++) {
     layer_t *layer = &net->layers[i];
@@ -116,7 +120,7 @@ void loadWeightsFromFile(network_t *net, const char *filename) {
 // = Print Overview Table of given Network =
 // =========================================
 // Print List of all Layers + Attributes + Memory Locations
-#define use_KB 1
+#define use_KB 0
 #if use_KB
 #define unit "k"
 #define divi 1024
@@ -134,7 +138,8 @@ void print_layers(network_t *net) {
 
     printf("%6s: IN %3d x %3d x %3d @mem(%6lu-%6lu" unit
            "B), OUT @mem(%6lu" unit "B)",
-           layer->name, (int)layer->height, (int)layer->width,
+           layer->name,
+           (int)layer->height, (int)layer->width,
            (int)layer->channels_in,
            layer->mem_addr_input * sizeof(float) / divi,
            (layer->mem_addr_input + memory_needed) * sizeof(float) / divi,
