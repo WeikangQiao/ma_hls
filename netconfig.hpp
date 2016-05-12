@@ -72,7 +72,7 @@ typedef enum __attribute__((packed)) {
 // = Struct LAYER_T =
 // ==================
 // Structure that holds one single CNN layer (actually, one CONV layer)
-struct __attribute__((packed)) layer_t {
+struct layer_t {
   char name[NET_NAME_MAX_LEN + 1];
   layertype_t type;
   dimension_t width;  // input dimensions

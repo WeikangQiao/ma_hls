@@ -10,7 +10,9 @@ OBJS = $(CPP_FILES: .cpp=.o)
 all: compileandlink 
 
 run: compileandlink
-	./test &> test.out
+	#-rm test.out
+	-./test
+	-./test.exe
 	
 debug: CFLAGS += -DEBUG
 debug: compileandlink

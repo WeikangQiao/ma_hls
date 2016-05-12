@@ -13,35 +13,4 @@ Copyright (C) 1986-2016 Xilinx, Inc. All Rights Reserved.
 @I [XFORM-1173] Reordering floating point operations aggressively.
 @I [XFORM-1176] Optimizing floating point comparison without checking NaN.
 @I [XFORM-1161] The maximum of name length is set into 30.
-@I [COSIM-47] Using XSIM for RTL simulation.
-@I [COSIM-14] Instrumenting C test bench ...
-@W [COSIM-369] AXI_master port 'DRAM_LAYERCONFIG.name' has a depth of '1'. Insufficient depth may result in simulation mismatch or freeze.
-@W [COSIM-369] AXI_master port 'DRAM_LAYERCONFIG.type' has a depth of '5'. Insufficient depth may result in simulation mismatch or freeze.
-@W [COSIM-369] AXI_master port 'DRAM_LAYERCONFIG.width.V' has a depth of '5'. Insufficient depth may result in simulation mismatch or freeze.
-@W [COSIM-369] AXI_master port 'DRAM_LAYERCONFIG.height.V' has a depth of '5'. Insufficient depth may result in simulation mismatch or freeze.
-@W [COSIM-369] AXI_master port 'DRAM_LAYERCONFIG.channels_in.V' has a depth of '5'. Insufficient depth may result in simulation mismatch or freeze.
-@W [COSIM-369] AXI_master port 'DRAM_LAYERCONFIG.channels_out.V' has a depth of '5'. Insufficient depth may result in simulation mismatch or freeze.
-@W [COSIM-369] AXI_master port 'DRAM_LAYERCONFIG.kernel.V' has a depth of '5'. Insufficient depth may result in simulation mismatch or freeze.
-@W [COSIM-369] AXI_master port 'DRAM_LAYERCONFIG.pad' has a depth of '5'. Insufficient depth may result in simulation mismatch or freeze.
-@W [COSIM-369] AXI_master port 'DRAM_LAYERCONFIG.stride.V' has a depth of '5'. Insufficient depth may result in simulation mismatch or freeze.
-@W [COSIM-369] AXI_master port 'DRAM_LAYERCONFIG.mem_addr_input' has a depth of '5'. Insufficient depth may result in simulation mismatch or freeze.
-@W [COSIM-369] AXI_master port 'DRAM_LAYERCONFIG.mem_addr_output' has a depth of '5'. Insufficient depth may result in simulation mismatch or freeze.
-@W [COSIM-369] AXI_master port 'DRAM_LAYERCONFIG.mem_addr_weights' has a depth of '5'. Insufficient depth may result in simulation mismatch or freeze.
-@W [COSIM-369] AXI_master port 'DRAM_LAYERCONFIG.is_expand_layer' has a depth of '5'. Insufficient depth may result in simulation mismatch or freeze.
-@W [COSIM-369] AXI_master port 'DRAM_LAYERCONFIG.pool' has a depth of '5'. Insufficient depth may result in simulation mismatch or freeze.
-@W [COSIM-369] AXI_master port 'gmem2' has a depth of '700000'. Insufficient depth may result in simulation mismatch or freeze.
-@I [COSIM-302] Starting C TB testing ... 
-@E [COSIM-359] Aborting co-simulation: C TB simulation failed, nonzero return value '255'.
-@E [COSIM-320] C TB testing failed, stop generating test vectors. Please check C TB or re-run cosim.
-@E [COSIM-4] *** C/RTL co-simulation finished: FAIL ***
-command 'ap_source' returned error code
-    while executing
-"source /usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/vivado_project/solution1/cosim.tcl"
-    invoked from within
-"hls::main /usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/vivado_project/solution1/cosim.tcl"
-    ("uplevel" body line 1)
-    invoked from within
-"uplevel 1 hls::main {*}$args"
-    (procedure "hls_proc" line 5)
-    invoked from within
-"hls_proc $argv"
+@I [SIM-1] CSim done with 0 errors.

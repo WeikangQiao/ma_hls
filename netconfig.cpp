@@ -91,7 +91,7 @@ void addLayer(network_t *net, layer_t layer, bool is_expand_layer,
 // prepare with convert_caffemodel.py
 
 void loadWeightsFromFile(network_t *net, const char *filename) {
-  FILE *filehandle = fopen(filename, "r");
+  FILE *filehandle = fopen(filename, "rb");
   if (!filehandle) {
     printf("ERROR: File %s could not be opened!\n", filename);
     exit(-1);
@@ -109,7 +109,8 @@ void loadWeightsFromFile(network_t *net, const char *filename) {
       float *weights_addr = (net->weights + layer->mem_addr_weights);
 
       // read portion of input file
-      fread(weights_addr, sizeof(float), num_weights, filehandle);
+      fread(weights_addr, sizeof(data_t), num_weights, filehandle);
+      printf("FREAD: (weights file %s): Read %d weights à %lu Bytes to %lu.\n", filename, num_weights, sizeof(data_t), (long)layer->mem_addr_weights);
     }
   }
 

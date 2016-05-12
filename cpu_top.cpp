@@ -86,11 +86,12 @@ void load_prepared_input_image(data_t *input_image, const char *filename,
          num_pixels * sizeof(data_t) / 1024);
 
   // load binary data from file
-  FILE *infile = fopen(filename, "r");
+  FILE *infile = fopen(filename, "rb");
   if (!infile) {
     printf("ERROR: File %s could not be opened!\n", filename);
     exit(-1);
   }
+  printf("FREAD: (prepped image %s): Read %d pixels à %lu Bytes.\n", filename, num_pixels, sizeof(data_t));
   fread(input_image, sizeof(data_t), num_pixels, infile);
   fclose(infile);
 }
