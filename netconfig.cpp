@@ -30,9 +30,13 @@ void addLayer(network_t *net, layer_t layer, bool is_expand_layer,
   // Data Size Calculations
   int input_data_pixels = layer.width * layer.height * layer.channels_in;
   int width_out =
-      std::floor((float)(layer.width + 2 * layer.pad - layer.kernel) / layer.stride) + 1;
+      std::floor((float)(layer.width + 2 * layer.pad - layer.kernel) /
+                 layer.stride) +
+      1;
   int height_out =
-	  std::floor((float)(layer.height + 2 * layer.pad - layer.kernel) / layer.stride) + 1;
+      std::floor((float)(layer.height + 2 * layer.pad - layer.kernel) /
+                 layer.stride) +
+      1;
   int output_data_pixels = width_out * height_out * layer.channels_out;
   int num_weights =  // conv + bias weights
       layer.channels_out * layer.channels_in * layer.kernel * layer.kernel +
@@ -110,11 +114,80 @@ void loadWeightsFromFile(network_t *net, const char *filename) {
 
       // read portion of input file
       fread(weights_addr, sizeof(data_t), num_weights, filehandle);
-      printf("FREAD: (weights file %s): Read %d weights à %lu Bytes to %lu.\n", filename, num_weights, sizeof(data_t), (long)layer->mem_addr_weights);
     }
   }
 
   fclose(filehandle);
+}
+
+// =========================================
+// = Convert layer_t struct to float array =
+// =========================================
+// float* floats must point to
+void layer_to_floats(layer_t &layer, float floats[NUM_FLOATS_PER_LAYER]) {
+  // All Integers can be represented exactly as floats,
+  // as long as it fits into the mantissa (23 bits for IEEE float):
+  assert(NBITS(MAX_DIMENSION) <= 23);          // dimension_t
+  assert(NBITS(MAX_CHANNELS + 9) <= 23);       // channel_t
+  assert(NBITS(MAX_WEIGHTS_PER_LAYER) <= 23);  // weightaddr_t
+  assert(NBITS(MAX_NUM_LAYERS) <= 23);         // numlayers_t, layerid_t
+
+  // struct layer_t fields:
+  // ----------------------
+  // char name[NET_NAME_MAX_LEN + 1];
+  // layertype_t type;
+  // dimension_t width;  // input dimensions
+  // dimension_t height;
+  // channel_t channels_in;
+  // channel_t channels_out;
+  // kernel_t kernel;  // kernel sizes supported: 3 or 1
+  // bool pad;         // padding is either 0 or 1 pixel
+  // stride_t stride;  // only stride 1 or 2 supported
+  // memaddr_t mem_addr_input;
+  // memaddr_t mem_addr_output;
+  // memaddr_t mem_addr_weights;
+  // bool is_expand_layer;
+  // pooltype_t pool;
+
+  // pack relevant fields into float array:
+  floats[0] = layer.width;
+  floats[1] = layer.height;
+  floats[2] = layer.channels_in;
+  floats[3] = layer.channels_out;
+  floats[4] = layer.kernel;
+  floats[5] = layer.stride;
+  floats[6] = layer.pad;
+  floats[7] = layer.mem_addr_input;
+  floats[8] = layer.mem_addr_output;
+  floats[9] = layer.mem_addr_weights;
+  floats[10] = layer.is_expand_layer;
+  floats[11] = (layer.pool == POOL_GLOBAL ? 1 : 0);
+}
+
+// =========================================
+// = Convert float array to layer_t struct =
+// =========================================
+void floats_to_layer(float floats[NUM_FLOATS_PER_LAYER], layer_t &layer) {
+  // Convert back to layer_t:
+  layer.name[0] = 'L';
+  layer.name[1] = 'Y';
+  layer.name[2] = 'R';
+  layer.name[3] = '?';
+  layer.name[4] = '?';
+  layer.name[5] = '\0';     // name not used in FPGA
+  layer.type = LAYER_NONE;  // not used anyway
+  layer.width = floats[0];
+  layer.height = floats[1];
+  layer.channels_in = floats[2];
+  layer.channels_out = floats[3];
+  layer.kernel = floats[4];
+  layer.stride = floats[5];
+  layer.pad = floats[6];
+  layer.mem_addr_input = floats[7];
+  layer.mem_addr_output = floats[8];
+  layer.mem_addr_weights = floats[9];
+  layer.is_expand_layer = floats[10];
+  layer.pool = (floats[11] == 1 ? POOL_GLOBAL : POOL_NONE);
 }
 
 // =========================================
@@ -139,20 +212,21 @@ void print_layers(network_t *net) {
 
     printf("%6s: IN %3d x %3d x %3d @mem(%6lu-%6lu" unit
            "B), OUT @mem(%6lu" unit "B)",
-           layer->name,
-           (int)layer->height, (int)layer->width,
+           layer->name, (int)layer->height, (int)layer->width,
            (int)layer->channels_in,
-           layer->mem_addr_input * sizeof(float) / divi,
-           (layer->mem_addr_input + memory_needed) * sizeof(float) / divi,
-           layer->mem_addr_output * sizeof(float) / divi);
+           long(layer->mem_addr_input * sizeof(float) / divi),
+           long((layer->mem_addr_input + memory_needed) * sizeof(float) / divi),
+           long(layer->mem_addr_output * sizeof(float) / divi));
 
     printf(", CONV (%dx%d)/%d%s", (int)layer->kernel, (int)layer->kernel,
            (int)layer->stride, layer->pad ? "p" : " ");
-    printf(", PARAM @mem(%4lu-%4lu" unit "B)",
-           layer->mem_addr_weights * sizeof(float) / divi,
-           (layer->mem_addr_weights + weights_size) * sizeof(float) / divi);
+    printf(
+        ", PARAM @mem(%4lu-%4lu" unit "B)",
+        long(layer->mem_addr_weights * sizeof(float) / divi),
+        long((layer->mem_addr_weights + weights_size) * sizeof(float) / divi));
     if (layer->is_expand_layer)
-      printf(" (exact out %8lu B)", layer->mem_addr_output * sizeof(float));
+      printf(" (exact out %8lu B)",
+             long(layer->mem_addr_output * sizeof(float)));
     if (layer->pool == POOL_GLOBAL) {
       printf(" POOL GLOBAL");
     } /*else if (layer->pool == POOL_3x3S2) {

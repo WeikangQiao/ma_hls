@@ -5,7 +5,8 @@
 // ======================================
 // Pointers to Shared DRAM Memory
 char *SHARED_DRAM;
-layer_t *SHARED_DRAM_LAYER_CONFIG;
+// layer_t *SHARED_DRAM_LAYER_CONFIG;
+float *SHARED_DRAM_LAYER_CONFIG;
 data_t *SHARED_DRAM_WEIGHTS;
 data_t *SHARED_DRAM_DATA;
 
@@ -30,7 +31,8 @@ void allocate_FPGA_memory(network_t *net_CPU) {
   // For actual HW Implementation, set fixed memory addresses in Shared DRAM
 
   // Memory Requirements (Bytes)
-  int configsize = net_CPU->num_layers * sizeof(layer_t);
+  // int configsize = net_CPU->num_layers * (sizeof(layer_t));
+  int configsize = net_CPU->num_layers * (NUM_FLOATS_PER_LAYER * sizeof(float));
   int weightsize = net_CPU->num_weights * sizeof(data_t);
   int datasize = net_CPU->total_pixel_mem * sizeof(data_t);
 
@@ -43,7 +45,7 @@ void allocate_FPGA_memory(network_t *net_CPU) {
   SHARED_DRAM = (char *)malloc(configsize + weightsize + datasize);
 
   // Pointer Redirection
-  SHARED_DRAM_LAYER_CONFIG = (layer_t *)(SHARED_DRAM + 0);
+  SHARED_DRAM_LAYER_CONFIG = (float *)(SHARED_DRAM + 0);
   SHARED_DRAM_WEIGHTS = (data_t *)(SHARED_DRAM + configsize);
   SHARED_DRAM_DATA = (data_t *)(SHARED_DRAM + configsize + weightsize);
 
@@ -59,7 +61,8 @@ void allocate_FPGA_memory(network_t *net_CPU) {
 // = Copy Layer Config + Weights to FPGA (shared DRAM) =
 // =====================================================
 void copy_config_to_FPGA(network_t *net_CPU) {
-  int configsize = net_CPU->num_layers * sizeof(layer_t);
+  // int configsize = net_CPU->num_layers * sizeof(layer_t);
+  int configsize = net_CPU->num_layers * (NUM_FLOATS_PER_LAYER * sizeof(float));
   int weightsize = net_CPU->num_weights * sizeof(data_t);
 
   // Info:
@@ -67,7 +70,11 @@ void copy_config_to_FPGA(network_t *net_CPU) {
   printf("     %dB (config) + %dKB (weights)\n", configsize, weightsize / 1024);
 
   // Copy Layer Config:
-  memcpy(SHARED_DRAM_LAYER_CONFIG, net_CPU->layers, configsize);
+  // memcpy(SHARED_DRAM_LAYER_CONFIG, net_CPU->layers, configsize);
+  for (int l = 0; l < net_CPU->num_layers; l++) {
+    layer_to_floats(net_CPU->layers[l],
+                    &SHARED_DRAM_LAYER_CONFIG[l * NUM_FLOATS_PER_LAYER]);
+  }
 
   // Copy Weights:
   memcpy(SHARED_DRAM_WEIGHTS, net_CPU->weights, weightsize);
@@ -91,7 +98,6 @@ void load_prepared_input_image(data_t *input_image, const char *filename,
     printf("ERROR: File %s could not be opened!\n", filename);
     exit(-1);
   }
-  printf("FREAD: (prepped image %s): Read %d pixels à %lu Bytes.\n", filename, num_pixels, sizeof(data_t));
   fread(input_image, sizeof(data_t), num_pixels, infile);
   fclose(infile);
 }
@@ -284,8 +290,8 @@ int main() {
 
   // Assert that layer_t fits into a multiple of bus transactions:
   // ONLY NECESSARY IF WE CAN MAP LAYER_T TRANSFER ONTO BUS_T AXI MASTER
-  // printf("size of layer_t: %d, size of bus_t: %d", (int)sizeof(layer_t),
-  //       (int)sizeof(bus_t));
+  printf("size of layer_t: %d, size of bus_t: %d", (int)sizeof(layer_t),
+         (int)sizeof(bus_t));
   // assert((sizeof(layer_t) % sizeof(bus_t) == 0) &&
   //       "layert_t is not multiple of bus size. adjust size of
   //       layer_t.dummy!");
@@ -325,10 +331,13 @@ int main() {
   // ============================
   // = Execute FPGA Accelerator =
   // ============================
+  int weights_offset =
+      ((long)SHARED_DRAM_WEIGHTS - (long)SHARED_DRAM) / sizeof(data_t);
+  int input_offset =
+      ((long)SHARED_DRAM_DATA - (long)SHARED_DRAM) / sizeof(data_t);
   printf("SHARED_DRAM is at address: %lu\n", (long)SHARED_DRAM);
-  fpga_top(SHARED_DRAM_LAYER_CONFIG, (data_t *)SHARED_DRAM, net_CPU->num_layers,
-           (unsigned long)SHARED_DRAM_WEIGHTS - (unsigned long)SHARED_DRAM,
-           (unsigned long)SHARED_DRAM_DATA - (unsigned long)SHARED_DRAM);
+  fpga_top((data_t *)SHARED_DRAM, net_CPU->num_layers,
+           weights_offset, input_offset);
 
   // ===============================
   // = Copy Results back from FPGA =

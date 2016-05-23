@@ -34,6 +34,8 @@
 // =================================
 const int NET_NAME_MAX_LEN = 6;            // max length of layer names
 const int MEMORY_ALIGNMENT = 1024 * 1024;  // align data in DRAM to 1MB borders
+ // floats needed to hold one layer_t (for conversion layer_t <-> float array):
+const int NUM_FLOATS_PER_LAYER = 12;
 
 // ============================
 // = Network Type-Definitions =
@@ -43,17 +45,16 @@ const int MEMORY_ALIGNMENT = 1024 * 1024;  // align data in DRAM to 1MB borders
 // -> adapts to specific Network with definitions in network.hpp
 // ! need to include network.hpp first!
 typedef ap_uint<NBITS(MAX_DIMENSION)> dimension_t;
-typedef ap_uint<NBITS(MAX_CHANNELS)+1> channel_t;
- // need MAX_CHANNELS +1bit to avoid possible wraparound with packed 1x1 convs
+typedef ap_uint<NBITS(MAX_CHANNELS + 9)> channel_t;
 typedef ap_uint<2> kernel_t;  // =1 or =3
 typedef ap_uint<2> stride_t;  // =1 or =2
 typedef ap_uint<NBITS(MAX_WEIGHTS_PER_LAYER)> weightaddr_t;
 typedef ap_uint<NBITS(MAX_NUM_LAYERS)> numlayers_t;    // saves number of layers
 typedef ap_uint<NBITS(MAX_NUM_LAYERS - 1)> layerid_t;  // counts to num_layers-1
 typedef float data_t;
-typedef int memaddr_t;
+typedef ap_uint<23> memaddr_t;  // must remain <= 23 bits to fit into float
 
-typedef enum __attribute__((packed)) {
+typedef enum {
   LAYER_CONV,
   LAYER_NONE  // not really used...
   // LAYER_RELU,  // implicit after LAYER_CONV
@@ -61,7 +62,7 @@ typedef enum __attribute__((packed)) {
   // LAYER_POOL,  // not supported, use all-convolutional networks
 } layertype_t;
 
-typedef enum __attribute__((packed)) {
+typedef enum {
   POOL_NONE,
   POOL_GLOBAL
   // POOL_2x2S2,  // not supported, use all-convolutional networks
@@ -86,7 +87,7 @@ struct layer_t {
   memaddr_t mem_addr_output;
   memaddr_t mem_addr_weights;
   bool is_expand_layer;
-  // ap_uint<12> dummy;
+  // ap_uint<31> dummy;
   pooltype_t pool;
   // full constructor, used to define network in network.cpp
   layer_t(const char *n, layertype_t t, int w, int h, int ci, int co, int k,
@@ -125,9 +126,9 @@ struct layer_t {
         mem_addr_output(0),
         mem_addr_weights(0),
         is_expand_layer(0),
-        pool(POOL_NONE){
-            name[0] = 0;
-        };
+        pool(POOL_NONE) {
+    name[0] = 0;
+  };
 };
 
 // =========================
@@ -137,7 +138,7 @@ typedef union {
   data_t f;
   int i;
 } bus_t;
-//const int transactions_per_layer = sizeof(layer_t) / sizeof(bus_t);
+// const int transactions_per_layer = sizeof(layer_t) / sizeof(bus_t);
 
 // ====================
 // = Struct NETWORK_T =
@@ -186,5 +187,11 @@ void addLayer(network_t *net, layer_t layer, bool is_expand_layer = false,
 // =================================
 // prepare with convert_caffemodel.py
 void loadWeightsFromFile(network_t *net, const char *filename);
+
+// ================================================
+// = Convert layer_t struct from / to float array =
+// ================================================
+void layer_to_floats(layer_t &layer, float floats[NUM_FLOATS_PER_LAYER]);
+void floats_to_layer(float floats[NUM_FLOATS_PER_LAYER], layer_t &layer);
 
 #endif

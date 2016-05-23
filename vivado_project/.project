@@ -37,6 +37,11 @@
 			<location>/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/vivado_project/.apc/.tb</location>
 		</link>
 		<link>
+			<name>.reference/ap_int.h</name>
+			<type>1</type>
+			<location>/opt/toolchain/xilinx/Vivado_2016.1/Vivado_HLS/2016.1/include/ap_int.h</location>
+		</link>
+		<link>
 			<name>solution1/constraints</name>
 			<type>2</type>
 			<location>/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/vivado_project/solution1/.tcls</location>

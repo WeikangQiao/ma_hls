@@ -51,9 +51,9 @@ typedef ap_int<NBITS(MAX_DIMENSION) + 2> coordinate_t;
 // ==============================
 // = FPGA Top Function / Module =
 // ==============================
-void fpga_top(volatile layer_t *DRAM_LAYERCONFIG, volatile data_t *SHARED_DRAM,
-              unsigned int num_layers, unsigned int byte_weights_offset,
-              unsigned int byte_input_offset);
+void fpga_top(data_t *SHARED_DRAM,
+              unsigned int num_layers, unsigned int weights_offset,
+              unsigned int input_offset);
 
 // ================================
 // = Debugging Output (Helper Fn) =

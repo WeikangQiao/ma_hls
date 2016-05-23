@@ -23,7 +23,6 @@ clean:
 	-rm *.o
 	-rm test
 	-rm test.out
-	-rm weights.bin
 	-rm -rf test.dSYM/
 
 %.o: %.cpp $(DEPS)
