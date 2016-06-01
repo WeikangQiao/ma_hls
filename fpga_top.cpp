@@ -48,18 +48,139 @@ bool do_pad_top_row, do_pad_bot_row, do_pad_curr_col;
 bool is_valid_input_coord;
 bool is_odd_input_row, is_odd_input_col;
 
+// =========================================
+// = Convert float array to layer_t struct =
+// =========================================
+// COPIED FROM NETCONFIG.CPP (need to update that file, too!)
+void floats_to_layer(float floats[NUM_FLOATS_PER_LAYER], layer_t &layer) {
+  // Convert back to layer_t:
+  union {
+    float f;
+    unsigned int i;
+  } u;
+
+#ifdef __SYNTHESIS__
+  char _undef;  // Undefine name to allow automatic removal
+  for (int i = 0; i <= NET_NAME_MAX_LEN; i++) {
+    layer.name[i] = _undef;
+  }
+#else
+  layer.name[0] = layer.name[0] = 'L';  // name not used in FPGA
+  layer.name[1] = 'Y';
+  layer.name[2] = 'R';
+  layer.name[3] = '?';
+  layer.name[4] = '?';
+  layer.name[5] = '\0';
+#endif
+  layer.type = LAYER_NONE;  // type not used
+
+  u.f = floats[0];
+  layer.width = u.i;
+  u.f = floats[1];
+  layer.height = u.i;
+  u.f = floats[2];
+  layer.channels_in = u.i;
+  u.f = floats[3];
+  layer.channels_out = u.i;
+  u.f = floats[4];
+  layer.kernel = u.i;
+  u.f = floats[5];
+  layer.stride = u.i;
+  u.f = floats[6];
+  layer.pad = u.i;
+  u.f = floats[7];
+  layer.mem_addr_input = u.i;
+  u.f = floats[8];
+  layer.mem_addr_output = u.i;
+  u.f = floats[9];
+  layer.mem_addr_weights = u.i;
+  u.f = floats[10];
+  layer.is_expand_layer = u.i;
+  u.f = floats[11];
+  layer.pool = (u.i == 1 ? POOL_GLOBAL : POOL_NONE);
+  /*
+   layer.name[0] = 'L';  // name not used in FPGA
+   layer.name[1] = 'Y';
+   layer.name[2] = 'R';
+   layer.name[3] = '?';
+   layer.name[4] = '?';
+   layer.name[5] = '\0';
+   layer.type = LAYER_NONE;  // type not used
+
+   layer.width = (floats[0]);
+   layer.height = floats[1];
+   layer.channels_in = floats[2];
+   layer.channels_out = floats[3];
+   layer.kernel = floats[4];
+   layer.stride = floats[5];
+   layer.pad = floats[6];
+   layer.mem_addr_input = floats[7];
+   layer.mem_addr_output = floats[8];
+   layer.mem_addr_weights = floats[9];
+   layer.is_expand_layer = floats[10];
+   layer.pool = (floats[11] == 1 ? POOL_GLOBAL : POOL_NONE);
+
+   */
+  /*  typedef unsigned int uint32_t;
+   assert(sizeof(uint32_t) == sizeof(float));
+
+   uint32_t width, height, channels_in, channels_out, kernel, stride, pad,
+   mem_addr_input, mem_addr_output, mem_addr_weights, is_expand_layer, pool;
+
+   width = *reinterpret_cast<uint32_t *>(&floats[0]);
+   height = *reinterpret_cast<uint32_t *>(&floats[1]);
+   channels_in = *reinterpret_cast<uint32_t *>(&floats[2]);
+   channels_out = *reinterpret_cast<uint32_t *>(&floats[3]);
+   kernel = *reinterpret_cast<uint32_t *>(&floats[4]);
+   stride = *reinterpret_cast<uint32_t *>(&floats[5]);
+   pad = *reinterpret_cast<uint32_t *>(&floats[6]);
+   mem_addr_input = *reinterpret_cast<uint32_t *>(&floats[7]);
+   mem_addr_output = *reinterpret_cast<uint32_t *>(&floats[8]);
+   mem_addr_weights = *reinterpret_cast<uint32_t *>(&floats[9]);
+   is_expand_layer = *reinterpret_cast<uint32_t *>(&floats[10]);
+   pool = *reinterpret_cast<uint32_t *>(&floats[11]);
+
+   layer.name[0] = 'L';  // name not used in FPGA
+   layer.name[1] = 'Y';
+   layer.name[2] = 'R';
+   layer.name[3] = '?';
+   layer.name[4] = '?';
+   layer.name[5] = '\0';
+   layer.type = LAYER_NONE;  // type not used
+
+   layer.width = width;
+   layer.height = height;
+   layer.channels_in = channels_in;
+   layer.channels_out = channels_out;
+   layer.kernel = kernel;
+   layer.stride = stride;
+   layer.pad = pad;
+   layer.mem_addr_input = mem_addr_input;
+   layer.mem_addr_output = mem_addr_output;
+   layer.mem_addr_weights = mem_addr_weights;
+   layer.is_expand_layer = is_expand_layer;
+   layer.pool = (pool == 1 ? POOL_GLOBAL : POOL_NONE);*/
+}
+
 // ======================
 // = FETCH_LAYER_CONFIG =
 // ======================
 void fetch_layer_config(unsigned int num_layers, float *DRAM_LAYERCONFIG) {
   // Fetch Layer Configuration
+  int bytes_transferred = 0;
   for (int l = 0; l < num_layers; l++) {
     // BRAM_LAYER_CONFIG[l] = ((layer_t *)DRAM_LAYERCONFIG)[l];
     layer_t fetched;
+#ifdef __SYNTHESIS__
+    char _undef;  // Undefine name to allow automatic removal
+    for (int i = 0; i < 7; i++) {
+      fetched.name[i] = _undef;
+    }
+#endif
     floats_to_layer(&DRAM_LAYERCONFIG[l * NUM_FLOATS_PER_LAYER], fetched);
     BRAM_LAYER_CONFIG[l] = fetched;
+    bytes_transferred += NUM_FLOATS_PER_LAYER * sizeof(float);
   }
-  int bytes_transferred = sizeof(layer_t) * num_layers;
   printf("FPGA: Fetch Layer Config from DRAM to BRAM: (%d Bytes)\n",
          bytes_transferred);
 }
@@ -93,6 +214,14 @@ void extract_layer_properties() {
     num_ch_out_per_convolution = 9;
     weights_per_filter = 1;
   }
+
+// Undefine layer.name to allow automatic removal
+#ifdef __SYNTHESIS__
+  char _undef;
+  for (int i = 0; i <= NET_NAME_MAX_LEN; i++) {
+    layer.name[i] = _undef;
+  }
+#endif
 
   // ============================
   // = Constraints / Assertions =
@@ -139,7 +268,8 @@ void extract_layer_properties() {
       (long)layer.mem_addr_weights);
 }
 
-void fetch_weights(data_t *DRAM_WEIGHTS_PTR) {
+void fetch_weights_for_layer(data_t *DRAM_WEIGHTS) {
+  data_t *DRAM_WEIGHTS_PTR = DRAM_WEIGHTS + layer.mem_addr_weights;
   // Copy Layer Weights from DRAM -> BRAM
   DBG("    weights cache: fetch (%dB) from @%lu \n",
       (int)(num_weights_in_layer * sizeof(data_t)), (long)DRAM_WEIGHTS_PTR);
@@ -147,7 +277,7 @@ void fetch_weights(data_t *DRAM_WEIGHTS_PTR) {
          num_weights_in_layer * sizeof(data_t));
 }
 
-void calc_output_coordinates() {
+void calculate_output_coordinates() {
   // ============================
   // = Output Pixel Coordinates =
   // ============================
@@ -228,6 +358,8 @@ data_t fetch_next_channel_DRAM_to_CACHE(data_t *DRAM_INPUT_PTR,
 }
 
 void update_AA_SREG_with_pixel(const channel_t curr_aa, data_t pixel_from_ram) {
+#pragma HLS ARRAY_PARTITION variable = ACTIVE_AREA complete dim = 0
+
   if (kernel == 1) {
     // For 1x1 Convolution: Load current Pixel into all AA SREG Slots
     // debug prints:  << load single pixel into AA sreg ## (a.aa) >>
@@ -292,12 +424,16 @@ void print_AA_SREG_contents(const channel_t curr_aa) {
 void do_2D_convolution(const channel_t curr_aa, const channel_t this_ci,
                        const channel_t this_co, data_t &accumulator,
                        data_t products[9]) {
+#pragma HLS ARRAY_PARTITION variable = WEIGHTS_CACHE cyclic factor = 9 dim = 1
+
   // DBG("\n");
   kernel_t i, j;
 L_CONV_H:
   for (j = 0; j < 3; j++) {
+#pragma HLS unroll
   L_CONV_W:
     for (i = 0; i < 3; i++) {
+#pragma HLS unroll
       // Filter Arrangement in Memory:
       // ch_in -> ch_out -> kernel_h -> kernel_w
       // for 3x3: ch_in -> 1x ch_out -> 3x3
@@ -377,23 +513,18 @@ void update_output_cache(const channel_t this_ci, const channel_t this_co,
 //
 void fpga_top(data_t *SHARED_DRAM, unsigned int num_layers,
               unsigned int weights_offset, unsigned int input_offset) {
-//#pragma HLS DATA_PACK variable=DRAM_LAYERCONFIG struct_level
-#pragma HLS INTERFACE m_axi depth = 1000 port = SHARED_DRAM offset = direct
-#pragma HLS INTERFACE m_axi depth = 1000 port = DRAM_LAYERCONFIG offset = direct
-
-  //
-  // ===========================
-  // = Interface Specification =
-  // ===========================
+//
+// ===========================
+// = Interface Specification =
+// ===========================
+#pragma HLS INTERFACE m_axi port = SHARED_DRAM depth = DRAM_DEPTH
 
   // =============================
   // = Shared DRAM Memory Config =
   // =============================
 
-  float *DRAM_LAYERCONFIG;
   data_t *DRAM_WEIGHTS;
   data_t *DRAM_DATA;
-  data_t *DRAM_WEIGHTS_PTR;       // curr layer's weights (mem region start)
   data_t *DRAM_INPUT_PTR;         // curr layer's input (mem region start)
   data_t *DRAM_OUTPUT_PTR;        // curr layer's output (mem region start)
   data_t *DRAM_INPUT_PIXEL_PTR;   // current input pixel
@@ -406,12 +537,11 @@ void fpga_top(data_t *SHARED_DRAM, unsigned int num_layers,
   // ======================================
 
   // Setup Pointers into shared DRAM
-  DRAM_LAYERCONFIG = SHARED_DRAM + 0;
   DRAM_WEIGHTS = SHARED_DRAM + weights_offset;
   DRAM_DATA = SHARED_DRAM + input_offset;
 
   // Fetch Layer Configuration
-  fetch_layer_config(num_layers, DRAM_LAYERCONFIG);
+  fetch_layer_config(num_layers, SHARED_DRAM);
 
 // ========================
 // = Loop Level 1: Layers =
@@ -427,9 +557,9 @@ L_LAYERS:
     // Set DRAM Memory Pointer
     DRAM_INPUT_PTR = (DRAM_DATA + layer.mem_addr_input);
     // Set DRAM Weights Pointer
-    DRAM_WEIGHTS_PTR = (DRAM_WEIGHTS + layer.mem_addr_weights);
+    // DRAM_WEIGHTS_PTR = (DRAM_WEIGHTS + layer.mem_addr_weights);
     // Copy Layer Weights from DRAM -> BRAM
-    fetch_weights(DRAM_WEIGHTS_PTR);
+    fetch_weights_for_layer(DRAM_WEIGHTS);
 
     // =================
     // = Debug Helpers =
@@ -536,7 +666,7 @@ L_LAYERS:
         // = Output Pixel Coordinates =
         // ============================
         // depending on stride, padding, conv1x1/conv3x3
-        calc_output_coordinates();
+        calculate_output_coordinates();
 
         // ===================================
         // = Loop Level 4: Input Channels Ci =
@@ -607,6 +737,8 @@ L_LAYERS:
         // -> "co" points to start of current such "block of output channels"
         L_CH_OUT:
           for (co = 0; co < ch_out; co += num_ch_out_per_convolution) {
+#pragma HLS PIPELINE II = 1
+
             //
             // Debug: What Channel(s) (in>out) MACC'ed in this "co" iteration
             for (int l = 0; l < num_ch_out_per_convolution; l++) {
@@ -626,7 +758,6 @@ L_LAYERS:
             // = Loop Level 7: Kernel W (i) =
             // ==============================
             do_2D_convolution(curr_aa, ci, co, accumulator, products);
-            printf("accumulator = %9.3f\n", accumulator);
 
             // =========================
             // = Write to Output Cache =
@@ -740,8 +871,8 @@ L_LAYERS:
 // =============================
 L_copy_globalpool_results:
   // ch_out still holds value from last layer
-  for (int co = 0; co < ch_out; co++) {
-    DRAM_DATA[co] = GLOBAL_POOL_CACHE[co];
+  for (int i = 0; i < ch_out; i++) {
+    DRAM_DATA[i] = GLOBAL_POOL_CACHE[i];
   }
   // memcpy(DRAM_DATA, GLOBAL_POOL_CACHE, ch_out * sizeof(data_t));
   printf("\nFPGA: Copy results back to DRAM (%d Bytes)\n",

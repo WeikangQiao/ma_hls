@@ -4,7 +4,7 @@
 <stringAttribute key="org.eclipse.cdt.launch.PROGRAM_NAME" value="Release/a.out"/>
 <stringAttribute key="org.eclipse.cdt.launch.PROJECT_ATTR" value="vivado_project"/>
 <booleanAttribute key="org.eclipse.cdt.launch.PROJECT_BUILD_CONFIG_AUTO_ATTR" value="false"/>
-<stringAttribute key="org.eclipse.cdt.launch.PROJECT_BUILD_CONFIG_ID_ATTR" value="cdt.managedbuild.config.gnu.exe.release.165702072"/>
+<stringAttribute key="org.eclipse.cdt.launch.PROJECT_BUILD_CONFIG_ID_ATTR" value="cdt.managedbuild.config.gnu.exe.release.2041021874"/>
 <stringAttribute key="org.eclipse.cdt.launch.WORKING_DIRECTORY" value="/usr/scs/dgschwend/Dropbox/ETH/Masterarbeit/workspace/hls/vivado_project"/>
 <booleanAttribute key="org.eclipse.cdt.launch.use_terminal" value="true"/>
 <stringAttribute key="org.eclipse.debug.core.source_locator_id" value="org.eclipse.cdt.debug.core.sourceLocator"/>

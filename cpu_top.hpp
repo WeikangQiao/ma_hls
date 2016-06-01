@@ -4,10 +4,10 @@
 // ========================
 // = Standard C Libraries =
 // ========================
-#include <cstdio>  // printf
-#include <ctime>   // time() for random seed
-#include <cmath>   // fabs, fmax, ...
-#include <vector>  // std::vector for softmax calculation
+#include <cstdio>     // printf
+#include <ctime>      // time() for random seed
+#include <cmath>      // fabs, fmax, ...
+#include <vector>     // std::vector for softmax calculation
 #include <algorithm>  // sort, reverse (on std::vector)
 
 // ===========================

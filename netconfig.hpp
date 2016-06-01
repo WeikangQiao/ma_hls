@@ -34,7 +34,7 @@
 // =================================
 const int NET_NAME_MAX_LEN = 6;            // max length of layer names
 const int MEMORY_ALIGNMENT = 1024 * 1024;  // align data in DRAM to 1MB borders
- // floats needed to hold one layer_t (for conversion layer_t <-> float array):
+// floats needed to hold one layer_t (for conversion layer_t <-> float array):
 const int NUM_FLOATS_PER_LAYER = 12;
 
 // ============================

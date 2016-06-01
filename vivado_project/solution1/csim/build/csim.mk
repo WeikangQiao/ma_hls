@@ -19,7 +19,7 @@ __SIM_DDS__ = 1
 
 ObjDir = obj
 
-HLS_SOURCES = ../../../../cpu_top.cpp ../../../../netconfig.cpp ../../../../network.cpp ../../../../fpga_top.cpp
+HLS_SOURCES = ../../../../network.cpp ../../../../netconfig.cpp ../../../../cpu_top.cpp ../../../../fpga_top.cpp
 
 TARGET := csim.exe
 
@@ -69,11 +69,11 @@ all: $(TARGET)
 
 
 
-$(ObjDir)/cpu_top.o: ../../../../cpu_top.cpp $(ObjDir)/.dir
-	$(Echo) "   Compiling ../../../../cpu_top.cpp in $(BuildMode) mode" $(AVE_DIR_DLOG)
+$(ObjDir)/network.o: ../../../../network.cpp $(ObjDir)/.dir
+	$(Echo) "   Compiling ../../../../network.cpp in $(BuildMode) mode" $(AVE_DIR_DLOG)
 	$(Verb)  $(CC) -c -MMD  $(IFLAG) $(DFLAG) -O1 -DNDEBUG $< -o $@ ; \
 
--include $(ObjDir)/cpu_top.d
+-include $(ObjDir)/network.d
 
 $(ObjDir)/netconfig.o: ../../../../netconfig.cpp $(ObjDir)/.dir
 	$(Echo) "   Compiling ../../../../netconfig.cpp in $(BuildMode) mode" $(AVE_DIR_DLOG)
@@ -81,11 +81,11 @@ $(ObjDir)/netconfig.o: ../../../../netconfig.cpp $(ObjDir)/.dir
 
 -include $(ObjDir)/netconfig.d
 
-$(ObjDir)/network.o: ../../../../network.cpp $(ObjDir)/.dir
-	$(Echo) "   Compiling ../../../../network.cpp in $(BuildMode) mode" $(AVE_DIR_DLOG)
+$(ObjDir)/cpu_top.o: ../../../../cpu_top.cpp $(ObjDir)/.dir
+	$(Echo) "   Compiling ../../../../cpu_top.cpp in $(BuildMode) mode" $(AVE_DIR_DLOG)
 	$(Verb)  $(CC) -c -MMD  $(IFLAG) $(DFLAG) -O1 -DNDEBUG $< -o $@ ; \
 
--include $(ObjDir)/network.d
+-include $(ObjDir)/cpu_top.d
 
 $(ObjDir)/fpga_top.o: ../../../../fpga_top.cpp $(ObjDir)/.dir
 	$(Echo) "   Compiling ../../../../fpga_top.cpp in $(BuildMode) mode" $(AVE_DIR_DLOG)

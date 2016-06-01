@@ -1,8 +1,8 @@
-<project xmlns="com.autoesl.autopilot.project" name="vivado_project" top="fpga_top">
+<project xmlns="com.autoesl.autopilot.project" name="vivado_project" top="fpga_top" parsingAllHeaderFiles="true" projectType="C/C++">
     <includePaths/>
     <libraryPaths/>
-    <Simulation>
-        <SimFlow name="csim" optimizeCompile="true" clean="true" csimMode="0" lastCsimMode="0"/>
+    <Simulation argv="">
+        <SimFlow name="csim" optimizeCompile="true" ldflags="" mflags="" clean="true" csimMode="0" lastCsimMode="0" setup="false"/>
     </Simulation>
     <files xmlns="">
         <file name="../../weights.bin" sc="0" tb="1" cflags=" "/>

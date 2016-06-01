@@ -14,11 +14,12 @@
 #define _FPGA_TOP_H_
 
 #include <cassert>
-#include <cmath>
+//#include <cmath>
 #include "ap_int.h"
 
 #ifdef __SYNTHESIS__
 #include <ap_utils.h>
+#include <hls_math.h>
 #endif
 
 #include "network.hpp"
@@ -51,9 +52,8 @@ typedef ap_int<NBITS(MAX_DIMENSION) + 2> coordinate_t;
 // ==============================
 // = FPGA Top Function / Module =
 // ==============================
-void fpga_top(data_t *SHARED_DRAM,
-              unsigned int num_layers, unsigned int weights_offset,
-              unsigned int input_offset);
+void fpga_top(data_t *SHARED_DRAM, unsigned int num_layers,
+              unsigned int weights_offset, unsigned int input_offset);
 
 // ================================
 // = Debugging Output (Helper Fn) =

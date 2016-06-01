@@ -36,10 +36,12 @@ void allocate_FPGA_memory(network_t *net_CPU) {
   int weightsize = net_CPU->num_weights * sizeof(data_t);
   int datasize = net_CPU->total_pixel_mem * sizeof(data_t);
 
-  // Round memory areas to 32-bit boundaries
+  // Round memory areas to 32-bit boundaries (4 bytes)
   configsize = std::ceil(configsize / 4.0) * 4;
   weightsize = std::ceil(weightsize / 4.0) * 4;
   datasize = std::ceil(datasize / 4.0) * 4;
+
+  int total_size = configsize + weightsize + datasize;
 
   // Memory Allocation
   SHARED_DRAM = (char *)malloc(configsize + weightsize + datasize);
@@ -54,7 +56,15 @@ void allocate_FPGA_memory(network_t *net_CPU) {
   printf("     Bytes allocated: %dB (config) + %dKB (weights) + %dKB (data)\n",
          configsize, weightsize / 1024, datasize / 1024);
   printf("     region: %lu – %lu\n", (long)SHARED_DRAM,
-         (long)(SHARED_DRAM + configsize + weightsize + datasize));
+         (long)(SHARED_DRAM + total_size));
+
+  if (DRAM_DEPTH != total_size / sizeof(data_t)) {
+    printf(
+        "\n\n!! ERROR !!\n\n Please set variable DRAM_DEPTH = %d "
+        "in network.hpp\n\n",
+        (int)(total_size / sizeof(data_t)));
+    exit(-1);
+  }
 }
 
 // =====================================================
@@ -307,13 +317,13 @@ int main() {
   // = Load + Copy Input Image =
   // ===========================
   /* Structured: generate_structured_input_image(input_image,win,hin,chin);
-     PseudoRandom: generate_random_input_image(input_image, win, hin, chin, 1);
-     ReallyRandom: generate_random_input_image(input_image, win, hin, chin -1);
-     Prepared Input File (convert_image.py):
-       load_prepared_input_image(input_image, "./indata.bin", win, hin, chin);
-     JPG/PNG Input File (!not implemented!):
-       load_image_file(input_image, "./puppy-500x350.jpg", win, hin, chin);
-       do_preprocess(input_image, win, hin, chin); */
+   PseudoRandom: generate_random_input_image(input_image, win, hin, chin, 1);
+   ReallyRandom: generate_random_input_image(input_image, win, hin, chin -1);
+   Prepared Input File (convert_image.py):
+   load_prepared_input_image(input_image, "./indata.bin", win, hin, chin);
+   JPG/PNG Input File (!not implemented!):
+   load_image_file(input_image, "./puppy-500x350.jpg", win, hin, chin);
+   do_preprocess(input_image, win, hin, chin); */
 
   // Allocate Memory on CPU Side:
   layer_t layer0 = net_CPU->layers[0];
@@ -336,8 +346,8 @@ int main() {
   int input_offset =
       ((long)SHARED_DRAM_DATA - (long)SHARED_DRAM) / sizeof(data_t);
   printf("SHARED_DRAM is at address: %lu\n", (long)SHARED_DRAM);
-  fpga_top((data_t *)SHARED_DRAM, net_CPU->num_layers,
-           weights_offset, input_offset);
+  fpga_top((data_t *)SHARED_DRAM, net_CPU->num_layers, weights_offset,
+           input_offset);
 
   // ===============================
   // = Copy Results back from FPGA =
@@ -367,7 +377,7 @@ int main() {
   // ====================
   // Check if output is 93.50% (+- 0.1%)
   // if (fabs(100 * probabilities[0].first - 93.50) < 0.1) {
-  if (fabs(100 * probabilities[0].first - 23.32) < 0.1) {
+  if (fabs(100 * probabilities[0].first - TEST_RESULT_EXPECTED) < 0.1) {
     printf("\nTestBench Result: SUCCESS\n");
     return 0;
   } else {
